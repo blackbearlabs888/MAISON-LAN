@@ -1,0 +1,52 @@
+COMMERCIAL LICENSE — MAISON ÉLAN WHITE-LABEL E-COMMERCE PLATFORM
+
+Copyright (c) 2026. All rights reserved.
+
+This software is licensed for use by the licensee under the terms agreed at
+purchase. The licensee may install, configure, customize and operate the
+software for commercial purposes. Redistribution, resale, sublicensing, or
+publication of the source code, in whole or in part, is not permitted unless
+explicitly granted in a separate written agreement.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+═══════════════════════════════════════════════════════════════════════════════
+⚠️  TODO — DECISION POINT (must be finalized by the purchaser before deployment)
+═══════════════════════════════════════════════════════════════════════════════
+
+This file is a commercial-license PLACEHOLDER. Before operating or reselling
+this product, the purchaser MUST:
+
+ 1. Decide and document the final licensing terms (seats, domains, white-label
+    redistribution rights, support window, warranty/liability caps) and replace
+    this placeholder section with the executed terms.
+
+ 2. Review and comply with THIRD-PARTY LICENSES. This repository is built on
+    open-source packages; the key permissively licensed (MIT) dependencies
+    include (non-exhaustive — audit node_modules/bun.lock for the full list):
+
+      - Next.js          (MIT)  — Vercel
+      - React / React DOM(MIT)  — Meta
+      - Prisma + @prisma/client (MIT) — Prisma
+      - Tailwind CSS     (MIT)  — Tailwind Labs
+      - shadcn/ui components (MIT, distributed in-repo under the project)
+      - bcryptjs         (MIT)
+      - Radix UI primitives, lucide-react, Zustand, Zod, recharts,
+        embla-carousel-react, sonner and others (MIT) — see package.json
+
+ 3. Fonts: Cormorant Garamond and Jost are loaded via next/font/google and are
+    licensed under the SIL Open Font License (OFL) — free for commercial use,
+    including embedding, under OFL terms.
+
+ 4. Confirm that any brand imagery shipped in public/images/ (fictional
+    "MAISON ÉLAN" demo assets, AI-generated) is either replaced with the
+    store's own assets or cleared for the licensee's use.
+
+Until item 1 is completed, this placeholder governs: all rights reserved by
+the copyright holder, no redistribution.

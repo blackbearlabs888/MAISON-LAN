@@ -1,0 +1,202 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-sale: var(--sale);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* ── MAISON ÉLAN editorial luxury palette (white-label: overridable via settings) ── */
+:root {
+  --radius: 0rem;
+  --brand-accent: #9a7b4f;
+
+  --background: #faf8f4;
+  --foreground: #1c1917;
+  --card: #ffffff;
+  --card-foreground: #1c1917;
+  --popover: #ffffff;
+  --popover-foreground: #1c1917;
+  --primary: #1c1917;
+  --primary-foreground: #faf8f4;
+  --secondary: #f0ebe2;
+  --secondary-foreground: #1c1917;
+  --muted: #f0ebe2;
+  --muted-foreground: #8a8175;
+  --accent: #f0ebe2;
+  --accent-foreground: #1c1917;
+  --destructive: #b3261e;
+  --border: #e7e0d4;
+  --input: #ddd5c7;
+  --ring: #9a7b4f;
+  --sale: #9c3d2e;
+  --chart-1: #9a7b4f;
+  --chart-2: #6b705c;
+  --chart-3: #b08968;
+  --chart-4: #a5a58d;
+  --chart-5: #cb997e;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1c1917;
+  --sidebar-primary: #1c1917;
+  --sidebar-primary-foreground: #faf8f4;
+  --sidebar-accent: #f0ebe2;
+  --sidebar-accent-foreground: #1c1917;
+  --sidebar-border: #e7e0d4;
+  --sidebar-ring: #9a7b4f;
+}
+
+.dark {
+  --background: #16130f;
+  --foreground: #ede8e0;
+  --card: #1e1a15;
+  --card-foreground: #ede8e0;
+  --popover: #1e1a15;
+  --popover-foreground: #ede8e0;
+  --primary: #ede8e0;
+  --primary-foreground: #16130f;
+  --secondary: #2a251e;
+  --secondary-foreground: #ede8e0;
+  --muted: #2a251e;
+  --muted-foreground: #a89e90;
+  --accent: #2a251e;
+  --accent-foreground: #ede8e0;
+  --destructive: #e08779;
+  --border: #35302a;
+  --input: #35302a;
+  --ring: #b6925f;
+  --sale: #e08779;
+  --chart-1: #b6925f;
+  --chart-2: #8a9a7b;
+  --chart-3: #b08968;
+  --chart-4: #a5a58d;
+  --chart-5: #cb997e;
+  --sidebar: #1e1a15;
+  --sidebar-foreground: #ede8e0;
+  --sidebar-primary: #ede8e0;
+  --sidebar-primary-foreground: #16130f;
+  --sidebar-accent: #2a251e;
+  --sidebar-accent-foreground: #ede8e0;
+  --sidebar-border: #35302a;
+  --sidebar-ring: #b6925f;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11";
+  }
+  ::selection {
+    background: var(--brand-accent);
+    color: #fff;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display), Georgia, "Times New Roman", serif;
+  }
+  .editorial-label {
+    @apply text-[11px] font-medium uppercase tracking-[0.22em];
+  }
+  .lux-underline {
+    position: relative;
+  }
+  .lux-underline::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -2px;
+    width: 100%;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: right;
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .lux-underline:hover::after,
+  .lux-underline[data-active="true"]::after {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+  .fade-up {
+    animation: fadeUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* thin elegant scrollbars for long lists */
+.scroll-slim::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.scroll-slim::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+  background: #cfc6b8;
+  border-radius: 999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
