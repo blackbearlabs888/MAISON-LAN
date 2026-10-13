@@ -5,6 +5,7 @@ import { getCurrentUser, isStaff } from "@/lib/auth";
 import { StoreConfigProvider } from "@/lib/store-config";
 import { SiteHeader } from "@/components/storefront/site-header";
 import { SiteFooter } from "@/components/storefront/site-footer";
+import { WishlistSync } from "@/components/storefront/wishlist-button";
 
 // Storefront reads settings + session per request — always dynamic.
 export const dynamic = "force-dynamic";
@@ -51,6 +52,7 @@ export default async function StorefrontLayout({ children }: { children: ReactNo
       style={{ "--brand-accent": settings.primaryColor } as React.CSSProperties}
     >
       <StoreConfigProvider settings={settings}>
+        <WishlistSync />
         <SiteHeader
           settings={{
             storeName: settings.storeName,

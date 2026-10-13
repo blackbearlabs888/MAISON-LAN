@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
   { href: "/account", label: "Overview & orders" },
+  { href: "/account/wishlist", label: "Wishlist" },
   { href: "/account/addresses", label: "Addresses" },
   { href: "/account/profile", label: "Profile & security" },
 ];
 
-export function AccountNav() {
+export function AccountNav({ isStaff = false }: { isStaff?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -22,6 +24,18 @@ export function AccountNav() {
 
   return (
     <nav aria-label="Account" className="space-y-1">
+      {isStaff && (
+        <>
+          <Link
+            href="/webmaster"
+            className="flex items-center gap-2 px-3 py-2.5 text-sm font-light text-primary transition-colors hover:bg-secondary/60 hover:text-foreground"
+          >
+            <LayoutDashboard className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+            Webmaster dashboard
+          </Link>
+          <div className="my-2 h-px bg-border" aria-hidden />
+        </>
+      )}
       {LINKS.map((l) => (
         <Link
           key={l.href}

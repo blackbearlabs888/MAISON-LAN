@@ -18,9 +18,16 @@ export default async function LoginPage({
   const next = safeNext((await searchParams).next);
   const user = await getCurrentUser().catch(() => null);
 
-  // Already signed in — the sign-in form must never reappear.
+  // Already signed in — the sign-in form must never reappear. Honour `next`
+  // only when the user is actually allowed to go there (a customer with
+  // next=/webmaster would otherwise loop /login ↔ /webmaster guard forever).
   if (user) {
-    redirect(next ?? (isStaff(user.role) ? "/webmaster" : "/account"));
+    const staffDefault = isStaff(user.role) ? "/webmaster" : "/account";
+    const target =
+      next && !(next.startsWith("/webmaster") && !isStaff(user.role))
+        ? next
+        : staffDefault;
+    redirect(target);
   }
 
   return <LoginForm next={next} />;

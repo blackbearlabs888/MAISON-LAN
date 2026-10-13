@@ -3,6 +3,7 @@ import { Cormorant_Garamond, Jost } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme-provider";
 
 const display = Cormorant_Garamond({
   variable: "--font-display",
@@ -55,9 +56,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${display.variable} ${sans.variable} antialiased bg-background text-foreground`}>
-        {children}
-        <Toaster />
-        <Sonner position="bottom-right" richColors closeButton />
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          {children}
+          <Toaster />
+          <Sonner position="bottom-right" richColors closeButton />
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -37,7 +37,7 @@ export function SiteFooter({ settings, footerPages }: FooterProps) {
   const socialLinks = (settings.socialLinks ?? []).filter((s) => s.platform && s.url);
 
   return (
-    <footer className="mt-auto border-t border-border bg-[#f3efe7]">
+    <footer className="mt-auto border-t border-border bg-[#f3efe7] dark:bg-[#211d17]">
       {settings.newsletterEnabled && (
         <NewsletterInline title={f.newsletterTitle} subtitle={f.newsletterSubtitle} />
       )}

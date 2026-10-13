@@ -19,6 +19,7 @@ import {
   ScrollText,
   Settings,
   ShoppingBag,
+  Store,
   Tag,
   Truck,
   Users,
@@ -29,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { apiPost } from "@/lib/webmaster-client";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 
 interface NavItemDef {
@@ -111,13 +113,14 @@ function NavList({
   );
 }
 
-function BrandBlock() {
+function BrandBlock({ withToggle = false }: { withToggle?: boolean }) {
   return (
-    <div className="border-b border-border px-4 py-5">
+    <div className="flex items-start justify-between border-b border-border px-4 py-5">
       <Link href="/webmaster" className="block">
         <p className="font-display text-xl leading-none tracking-wide">MAISON ÉLAN</p>
         <p className="editorial-label mt-1.5 text-[10px] text-muted-foreground">Webmaster Console</p>
       </Link>
+      {withToggle && <ThemeToggle className="-mr-1 -mt-1" />}
     </div>
   );
 }
@@ -149,6 +152,17 @@ function StaffBlock({ user }: { user: ShellUser }) {
         variant="outline"
         size="sm"
         className="mt-3 w-full justify-start rounded-none"
+        asChild
+      >
+        <Link href="/">
+          <Store className="h-4 w-4" aria-hidden />
+          View store
+        </Link>
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="mt-2 w-full justify-start rounded-none"
         onClick={signOut}
         disabled={signingOut}
       >
@@ -167,7 +181,7 @@ export function WebmasterShell({ user, children }: { user: ShellUser; children: 
     <div className="flex min-h-screen bg-background">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-border bg-card lg:flex">
-        <BrandBlock />
+        <BrandBlock withToggle />
         <div className="scroll-slim flex-1 overflow-y-auto py-3">
           <NavList role={user.role} pathname={pathname} />
         </div>
@@ -201,6 +215,7 @@ export function WebmasterShell({ user, children }: { user: ShellUser; children: 
           MAISON ÉLAN
           <span className="editorial-label ml-2 text-[10px] text-muted-foreground">Console</span>
         </Link>
+        <ThemeToggle className="ml-auto" />
       </div>
 
       {/* Content */}

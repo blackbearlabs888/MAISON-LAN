@@ -33,6 +33,7 @@ model User {
   orders               Order[]
   passwordResetTokens  PasswordResetToken[]
   auditLogs            AdminAuditLog[]
+  wishlistItems        WishlistItem[]
 
   @@index([role])
 }
@@ -130,6 +131,7 @@ model Product {
   variants      ProductVariant[]
   categories    ProductCategory[]
   orderItems    OrderItem[]
+  wishlistedBy  WishlistItem[]
 
   @@index([isActive, createdAt])
   @@index([isFeatured])
@@ -169,6 +171,22 @@ model ProductCategory {
 
   @@id([productId, categoryId])
   @@index([categoryId])
+}
+
+// ─────────────────────────────── Customer Wishlist ───────────────────────────────
+
+// One row per (user, product). Anonymous visitors are prompted to sign in.
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId, createdAt])
+  @@index([productId])
 }
 
 // ─────────────────────────────── Orders ───────────────────────────────

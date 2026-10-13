@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isStaff } from "@/lib/auth";
 import { AccountNav } from "@/components/storefront/account-nav";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export default async function AccountLayout({ children }: { children: ReactNode 
       </div>
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[220px_1fr]">
-        <AccountNav />
+        <AccountNav isStaff={isStaff(user.role)} />
         <div className="min-w-0">{children}</div>
       </div>
     </div>

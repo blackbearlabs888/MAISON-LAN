@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Search, ShoppingBag, User, Menu, X } from "lucide-react";
+import { Search, ShoppingBag, User, Menu, X, Heart, LayoutDashboard } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { useCart, cartCount } from "@/lib/cart-store";
+import { useWishlist } from "@/lib/wishlist-store";
+import { ThemeToggle } from "@/components/theme-toggle";
 import type { NavItem, StoreSettings } from "@/lib/store-settings";
 
 interface HeaderProps {
@@ -27,6 +29,7 @@ export function SiteHeader({ settings, isStaff, isLoggedIn }: HeaderProps) {
   const pathname = usePathname();
   const items = useCart((s) => s.items);
   const hydrated = useCart((s) => s.hydrated);
+  const wishlistCount = useWishlist((s) => s.ids.length);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -109,14 +112,22 @@ export function SiteHeader({ settings, isStaff, isLoggedIn }: HeaderProps) {
                     <Link href="/track" onClick={() => setMobileOpen(false)} className="px-3 py-3 text-sm uppercase tracking-[0.14em] text-foreground/80 hover:bg-secondary">
                       Track Order
                     </Link>
+                    <Link href={isLoggedIn ? "/account/wishlist" : "/login?next=%2Faccount%2Fwishlist"} onClick={() => setMobileOpen(false)} className="px-3 py-3 text-sm uppercase tracking-[0.14em] text-foreground/80 hover:bg-secondary">
+                      Wishlist
+                    </Link>
                     <Link href={isLoggedIn ? "/account" : "/login"} onClick={() => setMobileOpen(false)} className="px-3 py-3 text-sm uppercase tracking-[0.14em] text-foreground/80 hover:bg-secondary">
                       {isLoggedIn ? "My Account" : "Sign In"}
                     </Link>
                     {isStaff && (
-                      <Link href="/webmaster" onClick={() => setMobileOpen(false)} className="px-3 py-3 text-sm uppercase tracking-[0.14em] text-primary hover:bg-secondary">
-                        Webmaster
+                      <Link href="/webmaster" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 px-3 py-3 text-sm uppercase tracking-[0.14em] text-primary hover:bg-secondary">
+                        <LayoutDashboard className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                        Dashboard
                       </Link>
                     )}
+                    <div className="mt-3 flex items-center justify-between border-t border-border px-3 pt-3">
+                      <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Theme</span>
+                      <ThemeToggle />
+                    </div>
                   </nav>
                 </div>
               </SheetContent>
@@ -132,8 +143,19 @@ export function SiteHeader({ settings, isStaff, isLoggedIn }: HeaderProps) {
             {settings.logoText}
           </Link>
 
-          {/* right — search / account / bag */}
+          {/* right — dashboard / theme / search / account / wishlist / bag */}
           <div className="flex flex-1 items-center justify-end gap-1 sm:gap-2">
+            {isStaff && (
+              <Link
+                href="/webmaster"
+                aria-label="Back to webmaster dashboard"
+                className="mr-1 hidden h-9 items-center gap-2 border border-foreground/20 px-3 text-[11px] font-normal uppercase tracking-[0.16em] text-foreground/80 transition-colors hover:border-foreground/60 hover:text-foreground md:inline-flex"
+              >
+                <LayoutDashboard className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                Dashboard
+              </Link>
+            )}
+            <ThemeToggle className="hidden sm:inline-flex" />
             <button
               aria-label="Search products"
               onClick={() => setSearchOpen((v) => !v)}
@@ -147,6 +169,18 @@ export function SiteHeader({ settings, isStaff, isLoggedIn }: HeaderProps) {
               className="hidden h-10 w-10 items-center justify-center text-foreground/80 transition-colors hover:text-foreground sm:inline-flex"
             >
               <User className="h-5 w-5" strokeWidth={1.5} />
+            </Link>
+            <Link
+              href={isLoggedIn ? "/account/wishlist" : "/login?next=%2Faccount%2Fwishlist"}
+              aria-label={`Wishlist, ${wishlistCount} items`}
+              className="relative inline-flex h-10 w-10 items-center justify-center text-foreground/80 transition-colors hover:text-foreground"
+            >
+              <Heart className="h-5 w-5" strokeWidth={1.5} />
+              {wishlistCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-accent)] px-1 text-[10px] font-medium text-white">
+                  {wishlistCount}
+                </span>
+              )}
             </Link>
             <Link
               href="/cart"

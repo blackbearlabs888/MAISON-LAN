@@ -387,6 +387,12 @@ export const telegramConfigSchema = z.object({
     .optional(),
 });
 
+// ───────────────────────── wishlist ─────────────────────────
+
+export const wishlistAddSchema = z.object({
+  productId: z.string().min(1).max(64),
+});
+
 // ───────────────────────── misc ─────────────────────────
 
 export const newsletterSchema = z.object({

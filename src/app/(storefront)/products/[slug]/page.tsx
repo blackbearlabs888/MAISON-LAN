@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/money";
 import { ProductCard, type ProductCardData } from "@/components/storefront/product-card";
 import { ProductGallery } from "@/components/storefront/product-gallery";
 import { AddToCartPanel } from "@/components/storefront/add-to-cart-panel";
+import { WishlistHeart } from "@/components/storefront/wishlist-button";
 import { ChevronRight, Truck, ShieldCheck, RotateCcw } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -140,15 +141,18 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           )}
           <h1 className="mt-2 font-display text-3xl leading-tight sm:text-4xl">{product.name}</h1>
 
-          <div className="mt-4 flex items-baseline gap-3">
-            <p className={`text-xl ${onSale ? "text-[var(--sale)]" : ""}`}>
-              {formatMoney(price, currency, locale)}
-            </p>
-            {onSale && (
-              <p className="text-base text-muted-foreground line-through">
-                {formatMoney(product.priceCents, currency, locale)}
+          <div className="mt-4 flex items-center justify-between gap-4">
+            <div className="flex items-baseline gap-3">
+              <p className={`text-xl ${onSale ? "text-[var(--sale)]" : ""}`}>
+                {formatMoney(price, currency, locale)}
               </p>
-            )}
+              {onSale && (
+                <p className="text-base text-muted-foreground line-through">
+                  {formatMoney(product.priceCents, currency, locale)}
+                </p>
+              )}
+            </div>
+            <WishlistHeart productId={product.id} size="detail" productName={product.name} />
           </div>
 
           <p className="mt-6 text-[15px] font-light leading-relaxed text-muted-foreground">

@@ -13,7 +13,9 @@ export default async function WebmasterDashboardLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/webmaster");
-  if (!isStaff(user.role)) redirect("/login?next=/webmaster");
+  // Signed in but not staff — sending them to the login form (which honours
+  // next only when permitted) is pointless; the account area is where they belong.
+  if (!isStaff(user.role)) redirect("/account");
 
   const settings = await getStoreSettings();
 

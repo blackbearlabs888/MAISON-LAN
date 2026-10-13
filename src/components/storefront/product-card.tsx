@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { formatMoney, effectiveUnitPriceCents } from "@/lib/money";
+import { WishlistHeart } from "@/components/storefront/wishlist-button";
 
 export interface ProductCardData {
   id: string;
@@ -31,7 +32,12 @@ export function ProductCard({ product, currency, locale, priority, lowStockThres
   const lowStock = !soldOut && product.totalStock <= lowStockThreshold;
 
   return (
-    <article className="group">
+    <article className="group relative">
+      <WishlistHeart
+        productId={product.id}
+        className="absolute right-2 top-2 z-10 bg-background/80 backdrop-blur-sm transition-opacity group-hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+        productName={product.name}
+      />
       <Link href={`/products/${product.slug}`} className="block" aria-label={product.name}>
         <div className="relative aspect-[4/5] overflow-hidden bg-secondary">
           {product.imageUrl ? (

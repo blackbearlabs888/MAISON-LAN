@@ -96,7 +96,7 @@ export default async function HomePage() {
       </section>
 
       {/* ── Value strip ── */}
-      <section className="border-b border-border bg-[#f3efe7]" aria-label="Store services">
+      <section className="border-b border-border bg-[#f3efe7] dark:bg-[#211d17]" aria-label="Store services">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-8 text-center sm:grid-cols-3 sm:px-6">
           {[
             { t: "Complimentary shipping", d: "On orders above the threshold — tracked to your door." },
@@ -173,7 +173,7 @@ export default async function HomePage() {
 
       {/* ── Editorial ── */}
       {settings.homepage.showEditorial && (
-        <section className="border-y border-border bg-[#f3efe7]" aria-label="Editorial">
+        <section className="border-y border-border bg-[#f3efe7] dark:bg-[#211d17]" aria-label="Editorial">
           <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:gap-16">
             <div className="relative aspect-[4/3] overflow-hidden">
               <Image
