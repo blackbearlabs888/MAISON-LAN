@@ -4,7 +4,7 @@ import { getCurrentUser, requireUser } from "@/lib/auth";
 import { checkoutSchema } from "@/lib/validators";
 import { createOrderFromCheckout, CheckoutError } from "@/lib/orders";
 import { getStoreSettings } from "@/lib/store-settings";
-import { ok, fail, handleError, clientIp } from "@/lib/api-helpers";
+import { ok, fail, handleError, clientIp, appUrl } from "@/lib/api-helpers";
 import { rateLimit } from "@/lib/rate-limit";
 import { notify, fmt } from "@/lib/telegram";
 
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
         `Shipping: ${fmt("selected at checkout")}`,
         `Items: ${itemCount}`,
         "",
-        `Manage: ${fmt(process.env.APP_URL || "http://localhost:3000")}/webmaster/orders`,
+        `Manage: ${fmt(appUrl())}/webmaster/orders`,
       ].join("\n"),
       order.id
     );

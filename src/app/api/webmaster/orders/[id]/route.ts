@@ -7,7 +7,7 @@ import {
   orderNoteSchema,
 } from "@/lib/validators";
 import { assertTransition } from "@/lib/orders";
-import { ok, fail, handleError } from "@/lib/api-helpers";
+import { ok, fail, handleError, appUrl } from "@/lib/api-helpers";
 import { requireStaff } from "../../helpers";
 import { notify, fmt } from "@/lib/telegram";
 
@@ -121,7 +121,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             `Customer: ${fmt(order.customerName)}`,
             `Total: ${fmt(order.totalCents / 100)} ${fmt(settingsCurrency())}`,
             "",
-            `Manage: ${fmt(process.env.APP_URL || "http://localhost:3000")}/webmaster/orders`,
+            `Manage: ${fmt(appUrl())}/webmaster/orders`,
           ].join("\n"),
           id
         );

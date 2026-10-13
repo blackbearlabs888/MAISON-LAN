@@ -43,5 +43,13 @@ export function clientIp(req: Request): string {
 }
 
 export function appUrl(): string {
-  return process.env.APP_URL || "http://localhost:3000";
+  // APP_URL is the canonical name (see .env.example / docs/DEPLOYMENT-VERCEL.md).
+  // NEXT_PUBLIC_* variants are accepted as fallbacks for convenience on Vercel.
+  const raw =
+    process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "http://localhost:3000";
+  // normalize: no trailing slash, no stray whitespace (deep links stay clean)
+  return raw.trim().replace(/\/+$/, "");
 }

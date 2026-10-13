@@ -89,7 +89,7 @@ git push -u origin main
 |---|---|---|
 | `DATABASE_URL` | Neon **pooled** string (`…-pooler…`) | app runtime |
 | `DIRECT_DATABASE_URL` | Neon **direct** string | schema ops |
-| `APP_URL` | `https://<your-deployment>.vercel.app` | Telegram deep-links; update after custom domain |
+| `APP_URL` | `https://<your-deployment>.vercel.app` — **no trailing slash** | Telegram deep-links, robots & sitemap. `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_SITE_URL` are accepted as fallbacks if already set; update after adding a custom domain |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | *(optional)* | better: set in the web UI, `/webmaster/notifications` (stored in DB, wins over ENV) |
 
 **Recommended:** Project → Settings → Functions → **Region** → pick the same

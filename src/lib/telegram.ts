@@ -8,6 +8,7 @@
 
 import "server-only";
 import { db } from "@/lib/db";
+import { appUrl } from "@/lib/api-helpers";
 import { getTelegramCredentials, maskChatId } from "@/lib/telegram-config";
 
 export type NotifyEvent =
@@ -194,8 +195,8 @@ export function notifyOrderEvent(
   event: Exclude<NotifyEvent, "TEST" | "NEW_REGISTRATION" | "LOW_STOCK" | "SYSTEM_FAILURE">,
   data: OrderNotifyData
 ): void {
-  const appUrl = process.env.APP_URL || "http://localhost:3000";
-  const message = formatOrderMessage(event, data, appUrl);
+  const base = appUrl();
+  const message = formatOrderMessage(event, data, base);
   notify(event, message, /* orderId unknown here; callers pass via notify() when available */ undefined);
 }
 
