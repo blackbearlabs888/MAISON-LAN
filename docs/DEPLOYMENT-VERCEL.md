@@ -76,9 +76,10 @@ git push -u origin main
 
 1. [vercel.com](https://vercel.com) → **Add New… → Project** → import the repo.
 2. Framework preset is auto-detected (**Next.js**). Node.js default (20/22) is fine.
-3. The `vercel-build` script in `package.json` is picked up automatically:
-   `prisma generate --schema prisma/schema.postgres.prisma && next build`
-   — no manual build-command override needed.
+3. **Leave the Build Command field EMPTY** (do not type `next build` into it).
+4. Two safety nets guarantee the correct Prisma Client on Vercel:
+   - `vercel-build` script: `prisma generate --schema prisma/schema.postgres.prisma && next build`
+   - `postinstall` script (`scripts/prisma-generate.cjs`): detects `VERCEL=1` and generates the **PostgreSQL** client — even if a custom Build Command bypasses `vercel-build`.
 
 ### 4.3 Environment variables
 
@@ -127,6 +128,8 @@ Project → Settings → Domains → add your domain, point DNS as instructed
 
 | Symptom | Fix |
 |---|---|
+| **`Error validating datasource \`db\`: the URL must start with the protocol \`file:\``** (500 on every page, digest in the corner) | The deployment contains a **SQLite** Prisma Client while `DATABASE_URL` is a `postgresql://` string. Causes: an older release ZIP without Vercel support, or a Build Command override of `next build` that skipped the generate step. Fix: deploy the **latest ZIP**, make sure `scripts/` and `package.json` scripts are intact, **clear the Build Command field** (or set it to `bun run vercel-build`), then **Redeploy with Build Cache OFF** (Deployments → ⋯ → Redeploy). The build log must show `[prisma-generate] Generating Prisma Client from prisma/schema.postgres.prisma …`. |
+| The reverse: `the URL must start with the protocol \`postgresql:\`` | A PostgreSQL client is running against a SQLite URL — you set a `postgres` URL somewhere while deploying the SQLite flow. Follow one guide only, don't mix. |
 | `P1001: Can't reach the database server` | You used the direct string at runtime, or dropped `?sslmode=require`. Runtime must use the **pooled** URL. |
 | `Environment variable not found: DIRECT_DATABASE_URL` | Set it in `.env` (local CLI) or Vercel env vars (build). |
 | Error: *client generated for sqlite* / `sqlite does not support…` at runtime | The Postgres client wasn't generated — run `bun run db:generate:pg` locally, and confirm the `vercel-build` script wasn't removed in `package.json`. |

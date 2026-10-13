@@ -31,6 +31,10 @@ bun run db:push             # create the SQLite schema (file: ./db/custom.db)
 bun run build && bun run start
 ```
 
+> `bun install` / `bun run build` run `scripts/prisma-generate.cjs`, which reads
+> `DATABASE_URL` (env var or `.env`) and generates the matching Prisma Client
+> automatically — `file:` → SQLite, `postgres…` → PostgreSQL (`prisma/schema.postgres.prisma`).
+
 > The ZIP contains source only (no `node_modules`, no `.next`, no database) — the
 > store data stays out of the artifact, which is exactly what you want for a clean deploy.
 
