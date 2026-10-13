@@ -6,9 +6,12 @@
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
+    "vercel-build": "prisma generate --schema prisma/schema.postgres.prisma && next build",
     "lint": "eslint .",
     "db:push": "prisma db push --accept-data-loss",
+    "db:push:pg": "prisma db push --schema prisma/schema.postgres.prisma --accept-data-loss",
     "db:generate": "prisma generate",
+    "db:generate:pg": "prisma generate --schema prisma/schema.postgres.prisma",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "db:seed": "bun prisma/seed.ts"

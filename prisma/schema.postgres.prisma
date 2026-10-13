@@ -1,0 +1,389 @@
+// MAISON ÉLAN — Prisma schema for PostgreSQL (Neon / Vercel / any managed PG).
+// ─────────────────────────────────────────────────────────────────────────────
+// This file is IDENTICAL to prisma/schema.prisma except the datasource block:
+//   • provider  = "postgresql"
+//   • directUrl = env("DIRECT_DATABASE_URL")  (official Neon pattern)
+//
+// Why two schemas? Prisma fixes the provider at generate time, so local SQLite
+// (schema.prisma) and Neon Postgres (this file) ship side by side.
+//
+// Neon env vars (see docs/DEPLOYMENT-VERCEL.md):
+//   DATABASE_URL           → POOLED connection string (host contains "-pooler")
+//   DIRECT_DATABASE_URL    → UNPOOLED/direct string, used by db push & migrate
+//
+// Commands:
+//   bun run db:push:pg       # create/update the schema on Neon
+//   bun run db:generate:pg   # generate the Postgres client (also run by `vercel-build`)
+//   bun run db:seed          # seed demo data (after db:generate:pg)
+//
+// Notes:
+//  - No native enums needed: status fields are String, validated by Zod (src/lib/validators.ts).
+//  - JSON blobs stay in String columns — identical behavior on Postgres.
+//  - Monetary values are integer minor units (cents) — see docs/DECISIONS.md D-02.
+
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider  = "postgresql"
+  directUrl = env("DIRECT_DATABASE_URL")
+  url      = env("DATABASE_URL")
+}
+// ─────────────────────────────── Identity & Access ───────────────────────────────
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  phone        String?
+  // CUSTOMER | OWNER | ADMIN | ORDER_MANAGER | CONTENT_MANAGER (validated in Zod)
+  role         String    @default("CUSTOMER")
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  sessions             Session[]
+  addresses            Address[]
+  orders               Order[]
+  passwordResetTokens  PasswordResetToken[]
+  auditLogs            AdminAuditLog[]
+  wishlistItems        WishlistItem[]
+  @@index([role])
+}
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@index([expiresAt])
+}
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+model Address {
+  id         String   @id @default(cuid())
+  userId     String
+  label      String?
+  fullName   String
+  phone      String
+  line1      String
+  line2      String?
+  city       String
+  province   String
+  postalCode String
+  country    String   @default("Indonesia")
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+// ─────────────────────────────── Store Configuration ───────────────────────────────
+// Singleton row (id = "global") holding the white-label StoreSettings JSON.
+model StoreSetting {
+  id        String   @id @default("global")
+  data      String   // JSON-serialized StoreSettings (see lib/store-settings.ts)
+  updatedAt DateTime @updatedAt
+}
+// ─────────────────────────────── Catalog ───────────────────────────────
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  imageUrl    String?
+  position    Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  products ProductCategory[]
+  @@index([isActive, position])
+}
+model Product {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String
+  details     String? // materials / care / dimensions (markdown)
+  priceCents  Int
+  salePriceCents Int?
+  skuBase     String
+  material    String?
+  isFeatured  Boolean   @default(false)
+  isNewArrival Boolean  @default(false)
+  isBestSeller Boolean  @default(false)
+  isActive    Boolean   @default(true) // visible on storefront
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  images        ProductImage[]
+  variants      ProductVariant[]
+  categories    ProductCategory[]
+  orderItems    OrderItem[]
+  wishlistedBy  WishlistItem[]
+  @@index([isActive, createdAt])
+  @@index([isFeatured])
+  @@index([isBestSeller])
+  @@index([isNewArrival])
+}
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  url       String
+  alt       String?
+  position  Int     @default(0)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  @@index([productId, position])
+}
+model ProductVariant {
+  id              String  @id @default(cuid())
+  productId       String
+  size            String?
+  color           String?
+  sku             String  @unique
+  stock           Int     @default(0)
+  priceDeltaCents Int     @default(0) // optional modifier over product price
+  product         Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  @@index([productId])
+}
+model ProductCategory {
+  productId  String
+  categoryId String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  @@id([productId, categoryId])
+  @@index([categoryId])
+}
+// ─────────────────────────────── Customer Wishlist ───────────────────────────────
+// One row per (user, product). Anonymous visitors are prompted to sign in.
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  @@unique([userId, productId])
+  @@index([userId, createdAt])
+  @@index([productId])
+}
+// ─────────────────────────────── Orders ───────────────────────────────
+model Order {
+  id              String    @id @default(cuid())
+  orderNumber     String    @unique
+  idempotencyKey  String    @unique
+  userId          String?
+  email           String
+  phone           String
+  customerName    String
+  // Address snapshot (JSON string) — historical orders remain correct if addresses change
+  shippingAddress String
+  shippingMethod  String? // courier name snapshot
+  shippingCostCents Int     @default(0)
+  subtotalCents   Int
+  totalCents      Int
+  // PENDING_PAYMENT | PAID | PROCESSING | READY_TO_SHIP | SHIPPED | COMPLETED | CANCELLED | REFUNDED
+  status          String    @default("PENDING_PAYMENT")
+  // UNPAID | PAID_CONFIRMED | REFUNDED  (payment state is independent of fulfillment status)
+  paymentStatus   String    @default("UNPAID")
+  paymentMethod   String    @default("MANUAL_TRANSFER")
+  customerNote    String?
+  adminNote       String?
+  cancellationReason String?
+  paidAt          DateTime?
+  cancelledAt     DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user          User?                @relation(fields: [userId], references: [id])
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+  paymentRecords PaymentRecord[]
+  shipment      Shipment?
+  notifications NotificationDelivery[]
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([userId])
+  @@index([createdAt])
+}
+model OrderItem {
+  id             String  @id @default(cuid())
+  orderId        String
+  productId      String?
+  variantId      String?
+  name           String // snapshot
+  sku            String // snapshot
+  size           String?
+  color          String?
+  imageUrl       String? // snapshot
+  unitPriceCents Int // snapshot (sale price if active)
+  quantity       Int
+  lineTotalCents Int
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  @@index([orderId])
+}
+model OrderStatusHistory {
+  id        String   @id @default(cuid())
+  orderId   String
+  fromStatus String?
+  toStatus  String
+  note      String?
+  actorType String   @default("SYSTEM") // SYSTEM | ADMIN | CUSTOMER
+  actorLabel String?
+  createdAt DateTime @default(now())
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  @@index([orderId, createdAt])
+}
+model PaymentRecord {
+  id            String   @id @default(cuid())
+  orderId       String
+  method        String   @default("MANUAL_TRANSFER")
+  amountCents   Int
+  reference     String? // bank ref / sender name entered by webmaster
+  note          String?
+  confirmedById String?
+  confirmedAt   DateTime @default(now())
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  @@index([orderId])
+}
+// ─────────────────────────────── Shipping (manual, no courier APIs) ───────────────────────────────
+model Courier {
+  id                 String   @id @default(cuid())
+  name               String
+  code               String   @unique
+  description        String?
+  // e.g. "https://example.com/track?no={trackingNumber}"
+  trackingUrlTemplate String?
+  minDays            Int?
+  maxDays            Int?
+  isActive           Boolean  @default(true)
+  position           Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  rates   ShippingRate[]
+  shipments Shipment[]
+}
+model ShippingRate {
+  id             String  @id @default(cuid())
+  courierId      String
+  name           String // e.g. "Reguler", "Express"
+  // FLAT | REGION — region rates match province name; "*" matches any region
+  type           String  @default("FLAT")
+  region         String  @default("*")
+  rateCents      Int
+  freeAboveCents Int? // free shipping above this subtotal
+  isActive       Boolean @default(true)
+  courier        Courier @relation(fields: [courierId], references: [id], onDelete: Cascade)
+  @@index([courierId, isActive])
+}
+model Shipment {
+  id                String    @id @default(cuid())
+  orderId           String    @unique
+  courierId         String?
+  courierName       String? // snapshot
+  trackingNumber    String?
+  trackingUrl       String?
+  // PENDING | IN_TRANSIT | OUT_FOR_DELIVERY | DELIVERED | EXCEPTION | RETURNED
+  status            String    @default("PENDING")
+  estimatedDelivery String? // human-readable estimate set by webmaster
+  note              String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  order          Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  courier        Courier?                @relation(fields: [courierId], references: [id])
+  statusHistory  ShipmentStatusHistory[]
+}
+model ShipmentStatusHistory {
+  id         String   @id @default(cuid())
+  shipmentId String
+  status     String
+  note       String?
+  createdAt  DateTime @default(now())
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  @@index([shipmentId, createdAt])
+}
+// ─────────────────────────────── Content / CMS ───────────────────────────────
+model Banner {
+  id             String    @id @default(cuid())
+  title          String
+  subtitle       String?
+  imageUrl       String
+  mobileImageUrl String?
+  ctaText        String?
+  ctaUrl         String?
+  position       Int       @default(0)
+  isActive       Boolean   @default(true)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  @@index([isActive, position])
+}
+model ContentPage {
+  id             String   @id @default(cuid())
+  title          String
+  slug           String   @unique
+  content        String // sanitized markdown
+  isPublished    Boolean  @default(false)
+  showInFooter   Boolean  @default(true)
+  seoTitle       String?
+  seoDescription String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+model FaqEntry {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  position  Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+// ─────────────────────────────── Integrations & Audit ───────────────────────────────
+// Telegram delivery attempts — never inside the order transaction.
+model NotificationDelivery {
+  id        String    @id @default(cuid())
+  event     String // ORDER_CREATED | PAYMENT_CONFIRMED | ORDER_CANCELLED | SHIPMENT_ADDED |
+  // SHIPMENT_STATUS_CHANGED | LOW_STOCK | NEW_REGISTRATION | TEST | SYSTEM_FAILURE
+  status    String    @default("PENDING") // PENDING | SENT | FAILED
+  target    String? // masked chat id (never the token)
+  payload   String // JSON payload snapshot
+  attempts  Int       @default(0)
+  lastError String?
+  orderId   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  order     Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  @@index([status])
+  @@index([event])
+  @@index([createdAt])
+}
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  action     String // e.g. ORDER_STATUS_CHANGE, PRODUCT_UPDATE, SETTINGS_UPDATE
+  entity     String?
+  entityId   String?
+  meta       String? // JSON
+  createdAt  DateTime @default(now())
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  @@index([createdAt])
+  @@index([actorId])
+}

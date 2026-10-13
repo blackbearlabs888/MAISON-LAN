@@ -1,6 +1,11 @@
 # DEPLOYMENT — Production Deployment Guide
 
-The app builds to a **standalone Node server** (`output: "standalone"` in `next.config.ts`), so any Linux box or managed platform that runs Node 20+/Bun works. SQLite needs a persistent filesystem; for managed/serverless platforms with ephemeral disks, switch to PostgreSQL first (see `README.md` § Switching SQLite → PostgreSQL).
+> **Deploying to Vercel with a Neon PostgreSQL database?** Follow the dedicated
+> step-by-step guide instead: **`docs/DEPLOYMENT-VERCEL.md`** (~15 min, includes
+> schema push, env vars, `vercel-build`, and Vercel-specific caveats).
+> This guide covers self-hosted VPS/Docker with SQLite.
+
+The app builds to a **standalone Node server** (`output: "standalone"` in `next.config.ts` — disabled automatically on Vercel), so any Linux box or managed platform that runs Node 20+/Bun works. SQLite needs a persistent filesystem; for managed/serverless platforms with ephemeral disks, switch to PostgreSQL first (see `README.md` § Switching SQLite → PostgreSQL or `prisma/schema.postgres.prisma`).
 
 ## 1. Environment checklist
 

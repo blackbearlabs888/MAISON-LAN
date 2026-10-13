@@ -39,9 +39,22 @@ export async function POST(req: NextRequest) {
     }
 
     const dir = path.join(process.cwd(), "public", "uploads");
-    await mkdir(dir, { recursive: true });
     const name = `${Date.now().toString(36)}-${randomBytes(6).toString("hex")}.${ALLOWED[sniffed]}`;
-    await writeFile(path.join(dir, name), buffer);
+    try {
+      await mkdir(dir, { recursive: true });
+      await writeFile(path.join(dir, name), buffer);
+    } catch (fsErr) {
+      // Serverless platforms (Vercel, Lambda) ship a read-only filesystem —
+      // surface an actionable message instead of a generic 500.
+      const code = (fsErr as NodeJS.ErrnoException)?.code;
+      if (code === "EROFS" || code === "EACCES" || code === "EPERM") {
+        return fail(
+          "File storage is read-only on this host (typical on Vercel). Upload the image to Vercel Blob / S3 / Cloudinary and paste its URL into the image field instead.",
+          507,
+        );
+      }
+      throw fsErr;
+    }
 
     return ok({ url: `/uploads/${name}` }, 201);
   } catch (err) {

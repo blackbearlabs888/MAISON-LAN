@@ -133,26 +133,23 @@ Full field reference with effects: [`docs/CONFIGURATION.md`](docs/CONFIGURATION.
 
 ## Switching SQLite → PostgreSQL
 
-The schema is deliberately portable; money is stored as **integer cents** (no DECIMAL dependency), so the switch is safe.
+The schema is deliberately portable; money is stored as **integer cents** (no DECIMAL dependency), so the switch is safe. A ready-made PostgreSQL schema ships alongside the SQLite one — no manual edits needed:
 
-1. In `prisma/schema.prisma`, change the datasource provider:
+- `prisma/schema.prisma` — SQLite (local/dev/self-hosted, default)
+- `prisma/schema.postgres.prisma` — PostgreSQL/Neon (`directUrl` aware)
 
-   ```prisma
-   datasource db {
-     provider = "postgresql"   // was "sqlite"
-     url      = env("DATABASE_URL")
-   }
-   ```
-
-2. Point `DATABASE_URL` at your PostgreSQL instance in `.env`.
-3. Recreate the schema and (optionally) re-seed:
+1. Point `DATABASE_URL` (and `DIRECT_DATABASE_URL` for Neon) at your PostgreSQL instance in `.env` (see `.env.example`).
+2. Recreate the schema and (optionally) re-seed:
 
    ```bash
-   bun run db:push     # or bun run db:migrate for a migration history
-   bun run db:seed     # demo data only — skip for a real store
+   bun run db:push:pg        # prisma db push --schema prisma/schema.postgres.prisma
+   bun run db:generate:pg    # regenerate the client for PostgreSQL
+   bun run db:seed           # demo data only — skip for a real store
    ```
 
-That's the whole migration. Status "enums" are validated strings and JSON blobs are stored in `String` columns, both of which work unchanged on PostgreSQL. See [`docs/INSTALLATION.md`](docs/INSTALLATION.md) for production notes.
+That's the whole migration. Status "enums" are validated strings and JSON blobs are stored in `String` columns, both of which work unchanged on PostgreSQL.
+
+**Deploying to Vercel?** The `vercel-build` script already generates the Postgres client and builds — full walkthrough in [`docs/DEPLOYMENT-VERCEL.md`](docs/DEPLOYMENT-VERCEL.md). See also [`docs/INSTALLATION.md`](docs/INSTALLATION.md) for production notes.
 
 ## Image storage
 
