@@ -170,22 +170,21 @@ export async function createOrderFromCheckout(
 
   // Transactional creation + stock deduction (prevents overselling under concurrency).
   const order = await db.$transaction(async (tx) => {
-    // Re-check stock inside the transaction for enforceStock mode.
+    // Atomic conditional decrement: the write itself enforces `stock >= quantity`,
+    // so two concurrent checkouts can never both succeed (safe under SQLite's
+    // single-writer lock AND Postgres READ COMMITTED — see audit A-01).
     if (settings.enforceStock) {
       for (const { variant, item } of lines) {
-        const fresh = await tx.productVariant.findUnique({ where: { id: variant.id } });
-        if (!fresh || fresh.stock < item.quantity) {
+        const decremented = await tx.productVariant.updateMany({
+          where: { id: variant.id, stock: { gte: item.quantity } },
+          data: { stock: { decrement: item.quantity } },
+        });
+        if (decremented.count === 0) {
           throw new CheckoutError(
             `Stock for "${variant.product.name}" changed while checking out. Please review your cart.`,
             409
           );
         }
-      }
-      for (const { variant, item } of lines) {
-        await tx.productVariant.update({
-          where: { id: variant.id },
-          data: { stock: { decrement: item.quantity } },
-        });
       }
     }
 

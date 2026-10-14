@@ -1,6 +1,6 @@
 {
   "name": "maison-elan",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
@@ -9,6 +9,7 @@
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "vercel-build": "prisma generate --schema prisma/schema.postgres.prisma && node scripts/prisma-deploy-db.cjs && next build",
     "lint": "eslint .",
+    "test": "bun test tests/",
     "db:push": "prisma db push --accept-data-loss",
     "db:push:pg": "prisma db push --schema prisma/schema.postgres.prisma --accept-data-loss",
     "db:generate": "prisma generate",
@@ -17,6 +18,7 @@
     "db:reset": "prisma migrate reset",
     "db:seed": "bun prisma/seed.ts",
     "db:seed:pg": "prisma db seed --schema prisma/schema.postgres.prisma",
+    "seed:sql": "node scripts/generate-seed-sql.cjs",
     "hash:password": "node scripts/hash-password.cjs"
   },
   "prisma": {

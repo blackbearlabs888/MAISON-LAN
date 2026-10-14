@@ -7,6 +7,7 @@ import {
   orderNoteSchema,
 } from "@/lib/validators";
 import { assertTransition } from "@/lib/orders";
+import { getStoreSettings } from "@/lib/store-settings";
 import { ok, fail, handleError, appUrl } from "@/lib/api-helpers";
 import { requireStaff } from "../../helpers";
 import { notify, fmt } from "@/lib/telegram";
@@ -63,21 +64,32 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         data.paidAt = now;
         data.paymentStatus = "PAID_CONFIRMED";
       }
-      if (input.status === "CANCELLED") {
-        data.cancelledAt = now;
-        // restock paid/pending items that were reserved
-        const items = await db.orderItem.findMany({ where: { orderId: id, variantId: { not: null } } });
-        for (const item of items) {
-          if (!item.variantId) continue;
-          await db.productVariant
-            .update({ where: { id: item.variantId }, data: { stock: { increment: item.quantity } } })
-            .catch(() => undefined);
-        }
-      }
+      if (input.status === "CANCELLED") data.cancelledAt = now;
       if (input.status === "COMPLETED") data.completedAt = now;
       if (input.status === "REFUNDED") data.paymentStatus = "REFUNDED";
 
+      // Restock INSIDE the transaction, only when stock enforcement is on —
+      // enforcement being on at checkout is what reserved the stock in the
+      // first place (audit A-03: previous version restocked unconditionally,
+      // outside the tx, inflating stock in enforceStock-off stores and
+      // drifting on mid-loop failures).
+      const settings = await getStoreSettings();
+
       const updated = await db.$transaction(async (tx) => {
+        if (input.status === "CANCELLED" && settings.enforceStock) {
+          const items = await tx.orderItem.findMany({
+            where: { orderId: id, variantId: { not: null } },
+            select: { variantId: true, quantity: true },
+          });
+          for (const item of items) {
+            if (!item.variantId) continue;
+            // updateMany never throws on a deleted variant — no partial-failure drift
+            await tx.productVariant.updateMany({
+              where: { id: item.variantId },
+              data: { stock: { increment: item.quantity } },
+            });
+          }
+        }
         const o = await tx.order.update({
           where: { id },
           data: {

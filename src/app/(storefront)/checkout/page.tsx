@@ -39,6 +39,17 @@ interface SavedAddress {
   isDefault?: boolean;
 }
 
+// RFC-4122 v4 UUID from crypto.getRandomValues — used only when
+// crypto.randomUUID() is unavailable (older browsers / non-secure contexts).
+function generateUuidFallback(): string {
+  const buf = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(buf);
+  buf[6] = (buf[6] & 0x0f) | 0x40; // version 4
+  buf[8] = (buf[8] & 0x3f) | 0x80; // variant 10xx
+  const hex = Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
   const items = useCart((s) => s.items);
@@ -171,9 +182,10 @@ export default function CheckoutPage() {
     }
 
     setSubmitting(true);
+    // Valid UUIDv4 with a randomValues fallback for browsers without randomUUID
+    // (checkoutSchema requires UUID format — a Date/Math fallback would 422).
     const idempotencyKey =
-      globalThis.crypto?.randomUUID?.() ??
-      `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      globalThis.crypto?.randomUUID?.() ?? generateUuidFallback();
 
     try {
       const res = await fetch("/api/orders", {
@@ -197,7 +209,9 @@ export default function CheckoutPage() {
         return;
       }
       clear();
-      router.push(`/checkout/success/${data.orderNumber}`);
+      router.push(
+        `/checkout/success/${data.orderNumber}?email=${encodeURIComponent(email)}`
+      );
     } catch {
       setError("Network error — please try again.");
       setSubmitting(false);

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 import { getStoreSettings } from "@/lib/store-settings";
 import { formatMoney } from "@/lib/money";
 import { CheckCircle2, Copy } from "lucide-react";
@@ -12,16 +13,32 @@ export const metadata: Metadata = { title: "Order confirmed" };
 
 export default async function CheckoutSuccessPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ orderNumber: string }>;
+  searchParams: Promise<{ email?: string }>;
 }) {
   const { orderNumber } = await params;
+  const { email } = await searchParams;
   const settings = await getStoreSettings();
   const order = await db.order.findUnique({
     where: { orderNumber },
     include: { items: true, shipment: true },
   });
   if (!order) notFound();
+
+  // Ownership gate (audit A-02): the order number alone (6 hex chars) must never
+  // be enough to view contents.
+  //  - Registered orders: require the signed-in owner.
+  //  - Guest orders: require the matching email via ?email= (same 2-factor
+  //    contract as POST /api/track).
+  if (order.userId) {
+    const user = await getCurrentUser();
+    if (!user || user.id !== order.userId) notFound();
+  } else {
+    const supplied = (email ?? "").trim().toLowerCase();
+    if (!supplied || supplied !== order.email.toLowerCase()) notFound();
+  }
 
   const format = (c: number) => formatMoney(c, settings.currency, settings.locale);
 

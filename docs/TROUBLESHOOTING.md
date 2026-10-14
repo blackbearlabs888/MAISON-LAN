@@ -77,6 +77,10 @@ Or delete the broken row and let the app create the user properly:
 `DELETE FROM "User" WHERE email = '…';` → `/webmaster/setup` (first OWNER) or
 re-seed (`SEED_FORCE=1` on deploy, or `bun run db:seed` locally).
 
+To rebuild the whole demo dataset **via the SQL console instead** (no CLI):
+run `prisma/seed.sql` in the Neon SQL Editor — real bcrypt hashes, idempotent,
+optional WIPE block at the top (see `docs/DEPLOYMENT-VERCEL.md` §3.1).
+
 ## Seed duplicates
 
 `prisma/seed.ts` is **idempotent**: settings/accounts/categories/CMS pages use `upsert`; products/couriers are skipped when their slug/code already exists; banners/FAQ are only inserted when the table is empty. Re-running `bun run db:seed` never duplicates rows. If you *want* fresh demo data: delete `db/custom.db`, `bun run db:push`, `bun run db:seed`.

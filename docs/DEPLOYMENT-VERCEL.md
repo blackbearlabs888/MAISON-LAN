@@ -72,6 +72,21 @@ bun run db:generate:pg && bun run db:seed:pg
 Verify in the Neon console → **Tables**: you should see all 25 tables
 (`User`, `Product`, `Order`, `WishlistItem`, …).
 
+### 3.1 Alternative — seed via the Neon SQL Editor (no CLI needed)
+
+`prisma/seed.sql` is the same demo seed as **plain SQL** — real bcrypt hashes,
+idempotent (`ON CONFLICT DO NOTHING`), safe to run more than once. Paste it
+into **Neon Console → SQL Editor → Run**. Useful when the CLI is unavailable,
+or when a manual / AI-generated insert left broken rows behind (e.g. a fake
+password hash):
+
+- Want a clean slate first? Uncomment the `WIPE` block at the top of the file
+  (⚠️ it also removes orders/sessions belonging to the seeded users).
+- Account list & passwords are in the file header — change them after the
+  first login.
+- Regenerate after changing the seed: `bun run seed:sql`
+  (requires the default SQLite Prisma Client — run before `db:generate:pg`).
+
 ## 4. Deploy to Vercel
 
 ### 4.1 Push the code to GitHub
