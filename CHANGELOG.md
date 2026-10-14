@@ -3,6 +3,19 @@
 All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/); this project does not yet use semantic versioning for public releases.
 
+## [0.2.2] — Auto-provision on deploy: schema push + seed
+
+### Added
+- **Deployments provision their own database**: the Vercel build now runs `prisma db push` (syncs the 25-table schema to Neon) and seeds demo content automatically — a fresh deploy no longer ships an empty store.
+- `scripts/prisma-deploy-db.cjs` build helper: Postgres/SQLite context detection (mirrors `prisma-generate.cjs`), `DIRECT_DATABASE_URL` → `DATABASE_URL` pooled fallback for schema ops, runner candidates (prisma → npx → bunx).
+- Seed guard: `prisma/seed.ts` seeds **only an empty database**; redeploys never overwrite existing users/products/admin-edited content. `SEED_FORCE=1` env opts out of the guard.
+- New script `db:seed:pg` + `prisma.seed` package.json config (enables `prisma db seed` / auto-seed on `migrate reset`).
+- Admin utility `bun run hash:password "…"` (`scripts/hash-password.cjs`): prints a self-verified 60-char bcrypt hash for fixing manually-inserted users whose `passwordHash` is a placeholder ("Invalid email or password" for every password). Documented in both troubleshooting guides.
+
+### Fixed
+- `.env.example` restored (went missing from the release ZIP again); now documents `SEED_FORCE`, SQLite relative-path resolution (`file:../db/custom.db`) and the pooled/direct Neon pair.
+- Deployment guide: first-run flow now covers the auto-seeded branch, demo-account credentials corrected to the actual seed output, troubleshooting rows for empty stores / seed guard / push failures.
+
 ## [1.0.0] — Initial commercial release
 
 First complete build of the MAISON ÉLAN white-label premium e-commerce platform.

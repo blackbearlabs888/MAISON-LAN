@@ -53,6 +53,30 @@ bun run db:push          # then align the database itself (dev)
 - **Account disabled**: deactivated users fail session validation (`isActive` check) — re-enable in `/webmaster/customers` (staff) or via DB.
 - **DB reset**: sessions live in the DB; restoring/resting the DB invalidates them. Log in again.
 
+## `Invalid email or password` for EVERY password
+
+The stored `User.passwordHash` is **not a valid bcrypt hash**. A genuine hash is
+exactly **60 characters**: `$2a$` or `$2b$` + cost `10$` + 50 random chars from
+the alphabet `./A-Za-z0-9` — e.g.
+`$2b$10$wLMzOvdfQqs6216wZi7OTOA.XWm/vS6q4JObIn33xU9qkSrvpFYMq`.
+Red flags: wrong length (anything ≠ 60), repeating patterns (`V5V5V5…`),
+truncation. These usually come from manually inserting a user row in the SQL
+console with an example/placeholder hash — such a row can never log in.
+
+**Fix** — generate a real hash and update the row:
+
+```bash
+bun run hash:password "YourNewPassword123!"    # prints a 60-char hash (self-verified)
+```
+
+```sql
+UPDATE "User" SET "passwordHash" = '<paste the 60-char hash>' WHERE email = 'you@example.com';
+```
+
+Or delete the broken row and let the app create the user properly:
+`DELETE FROM "User" WHERE email = '…';` → `/webmaster/setup` (first OWNER) or
+re-seed (`SEED_FORCE=1` on deploy, or `bun run db:seed` locally).
+
 ## Seed duplicates
 
 `prisma/seed.ts` is **idempotent**: settings/accounts/categories/CMS pages use `upsert`; products/couriers are skipped when their slug/code already exists; banners/FAQ are only inserted when the table is empty. Re-running `bun run db:seed` never duplicates rows. If you *want* fresh demo data: delete `db/custom.db`, `bun run db:push`, `bun run db:seed`.

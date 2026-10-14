@@ -1,6 +1,9 @@
-// Development seed — realistic fictional data for MAISON ÉLAN.
+// Development/demo seed — realistic fictional data for MAISON ÉLAN.
 // ⚠️ Development/demo only. Seeded credentials are NOT production defaults.
-// Run: bun run db:seed
+// Run: bun run db:seed (SQLite) · bun run db:seed:pg (PostgreSQL/Neon)
+// Also runs automatically inside Vercel builds (scripts/prisma-deploy-db.cjs) —
+// but ONLY against an empty database: the guard below never lets a redeploy
+// overwrite existing users, products or admin-edited content.
 
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
@@ -8,6 +11,18 @@ import bcrypt from "bcryptjs";
 const db = new PrismaClient();
 
 async function main() {
+  // ── safety guard: only seed an EMPTY database ──
+  // The deploy pipeline runs this seed on every release. If the store already
+  // has accounts (real data or a previous seed), skip — admin edits must never
+  // be overwritten by a redeploy. Set SEED_FORCE=1 to opt out of the guard.
+  const userCount = await db.user.count();
+  if (userCount > 0 && process.env.SEED_FORCE !== "1") {
+    console.log(`[seed] Database already has ${userCount} user(s) — seed skipped.`);
+    console.log("[seed] Seeding only fills an EMPTY database so production edits are never overwritten.");
+    console.log("[seed] Force a re-seed with the env var SEED_FORCE=1 (fills missing rows, deletes nothing).");
+    return;
+  }
+
   console.log("🌱 Seeding MAISON ÉLAN development data…");
 
   // ── settings singleton ──
