@@ -3,6 +3,24 @@
 All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/); this project does not yet use semantic versioning for public releases.
 
+## [0.4.4] — Image upload restored & made production-portable (database-backed media)
+
+Found while auditing "does anything in the code still assume local SQLite/disk only?": the webmaster's **upload button was a guaranteed 404** — `webmaster-client.ts`, `ImageUrlField` and the product editor all POST to `/api/upload`, but the route had been **deleted in an earlier refactor** (`52f15cb`), leaving the client half orphaned. Worse, the deleted implementation wrote to `public/uploads/`, which is inherently broken on Vercel's **read-only filesystem** (it exited 507 there by design) — the exact "works locally, not in production" trap this release removes. Docs were split between "uploads not implemented" (audit A-07) and a fully-documented disk sink (CUSTOMIZATION/ARCHITECTURE/DECISIONS D-10); all three now match the shipped reality.
+
+### Added
+- **`MediaAsset` table** (both schemas; `data Bytes` → `bytea` on Postgres / `BLOB` on SQLite) + migration `prisma/migrations/1_add_media_asset/migration.sql` (generated via `prisma migrate diff`, so the deploy's drift check stays byte-exact). Applied automatically by `vercel-build` → `prisma migrate deploy`; local installs get it via `npm run setup` / `db push`.
+- **`POST /api/upload`** (restored, staff-only): multipart, **4 MiB cap** (Vercel's serverless body limit is 4.5 MB), magic-byte sniffing for JPEG/PNG/WebP (Content-Type can be spoofed), `media` capability guard, `MEDIA_UPLOAD` audit-log entry.
+- **`GET /api/uploads/[id]`** — public serving with `Cache-Control: public, max-age=31536000, immutable` (images are never mutated; re-upload creates a new row) and `X-Content-Type-Options: nosniff`.
+- **`src/lib/storage.ts`** — the D-10 sink adapter, implemented for real: `saveImage()`/`loadImage()` against the database. Swapping to S3/Vercel Blob/Cloudinary means rewriting this one file; every image field already accepts absolute URLs.
+- **`media` capability** in `src/lib/permissions.ts` — granted to ADMIN and CONTENT_MANAGER (OWNER is `*`). ORDER_MANAGER deliberately excluded (no content editors).
+
+### Changed
+- Upload UI label 5 MB → 4 MB (`ImageUrlField`, `uploadImage` doc).
+- Docs aligned to the database sink: DEPLOYMENT-VERCEL §6/§7 (uploads work on Vercel out of the box), ARCHITECTURE, CUSTOMIZATION §6, WEBMASTER-GUIDE, BACKUP-RESTORE (media rides in DB backups — no separate uploads job), INSTALLATION, DEPLOYMENT (VPS/standalone: no media volume), TROUBLESHOOTING, DECISIONS D-10, PRODUCTION_READINESS_AUDIT A-07.
+
+### Verified (dev runtime, SQLite)
+Unauthenticated upload → 401 · owner upload → 201 + `/api/uploads/<id>` · text file renamed to `.png` → 415 (magic bytes) · 4.2 MB → 413 · public serving → 200 with immutable headers and **byte-identical** content · unknown id → 404 · ORDER_MANAGER → 403 (no `media` capability) · audit row recorded. `bun run lint` clean · **34/34 tests (129 assertions)**.
+
 ## [0.4.3] — Provisioning chain proven on real PostgreSQL + Vercel build command pinned
 
 Report from the field: "deployed to Vercel on Neon — no tables created". The shipped chain was re-proven end-to-end against a **real PostgreSQL 18** (embedded, same protocol Neon speaks), and the one ambiguity that could still bypass provisioning on Vercel (dashboard Build Command override silently skipping `vercel-build`) is now structurally impossible.

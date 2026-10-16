@@ -1,16 +1,22 @@
-import { NextRequest } from "next/server";
-import { requireRole } from "@/lib/auth";
-import { ok, fail, handleError } from "@/lib/api-helpers";
-import { randomBytes } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
+// POST /api/upload — webmaster image upload (products, banners, CMS pages).
+//
+// Restored in v0.4.4 with a DATABASE-backed sink (src/lib/storage.ts): the
+// historical implementation wrote to public/uploads, which was both deleted
+// from the codebase (leaving the upload UI pointing at a dead endpoint) and
+// inherently broken on Vercel's read-only filesystem. Bytes now live in the
+// MediaAsset table and are served publicly by /api/uploads/[id].
+//
+// Access: staff with the `media` capability (OWNER, ADMIN, CONTENT_MANAGER).
+// Validation: 4 MiB cap (Vercel's serverless body limit is 4.5 MB) and
+// magic-byte sniffing for JPEG/PNG/WebP — Content-Type headers can be spoofed.
 
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
-const ALLOWED: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-};
+import { NextRequest } from "next/server";
+import { audit } from "@/lib/auth";
+import { ok, fail, handleError } from "@/lib/api-helpers";
+import { saveImage } from "@/lib/storage";
+import { requireStaff } from "../webmaster/helpers";
+
+const MAX_BYTES = 4 * 1024 * 1024; // 4 MiB — fits Vercel's 4.5 MB body envelope
 
 // Magic-byte sniffing — Content-Type headers can be spoofed.
 function sniffImage(buf: Buffer): string | null {
@@ -22,41 +28,23 @@ function sniffImage(buf: Buffer): string | null {
   return null;
 }
 
-// POST /api/upload — webmaster-only image upload (products, banners, CMS).
 export async function POST(req: NextRequest) {
   try {
-    await requireRole(["OWNER", "ADMIN", "CONTENT_MANAGER", "ORDER_MANAGER"]);
+    const staff = await requireStaff("media");
 
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return fail("No file provided.", 400);
-    if (file.size > MAX_BYTES) return fail("Image exceeds the 5 MB limit.", 413);
+    if (file.size === 0) return fail("The uploaded file is empty.", 400);
+    if (file.size > MAX_BYTES) return fail("Image exceeds the 4 MB limit.", 413);
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const sniffed = sniffImage(buffer);
-    if (!sniffed || !ALLOWED[sniffed]) {
-      return fail("Only JPEG, PNG or WebP images are allowed.", 415);
-    }
+    const mime = sniffImage(buffer);
+    if (!mime) return fail("Only JPEG, PNG or WebP images are allowed.", 415);
 
-    const dir = path.join(process.cwd(), "public", "uploads");
-    const name = `${Date.now().toString(36)}-${randomBytes(6).toString("hex")}.${ALLOWED[sniffed]}`;
-    try {
-      await mkdir(dir, { recursive: true });
-      await writeFile(path.join(dir, name), buffer);
-    } catch (fsErr) {
-      // Serverless platforms (Vercel, Lambda) ship a read-only filesystem —
-      // surface an actionable message instead of a generic 500.
-      const code = (fsErr as NodeJS.ErrnoException)?.code;
-      if (code === "EROFS" || code === "EACCES" || code === "EPERM") {
-        return fail(
-          "File storage is read-only on this host (typical on Vercel). Upload the image to Vercel Blob / S3 / Cloudinary and paste its URL into the image field instead.",
-          507,
-        );
-      }
-      throw fsErr;
-    }
-
-    return ok({ url: `/uploads/${name}` }, 201);
+    const stored = await saveImage(buffer, mime);
+    await audit(staff, "MEDIA_UPLOAD", "MediaAsset", stored.id, { mime: stored.mime, size: stored.size });
+    return ok({ url: stored.url }, 201);
   } catch (err) {
     return handleError(err);
   }

@@ -292,7 +292,8 @@ export function SmartImage({
 
 /**
  * Image URL field with local upload. Shows a small preview when a URL is set.
- * The value is always a plain URL string (uploaded files land under /uploads).
+ * The value is always a plain URL string (uploaded files are stored in the
+ * database and served from /api/uploads/<id> — works on Vercel & SQLite alike).
  */
 export function ImageUrlField({
   value,
@@ -346,7 +347,7 @@ export function ImageUrlField({
               </>
             ) : (
               <>
-                <Upload className="h-3.5 w-3.5" aria-hidden /> Upload image (≤5MB, JPG/PNG/WebP)
+                <Upload className="h-3.5 w-3.5" aria-hidden /> Upload image (≤4MB, JPG/PNG/WebP)
               </>
             )}
             <input
