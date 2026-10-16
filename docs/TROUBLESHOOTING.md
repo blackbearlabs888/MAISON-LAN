@@ -30,6 +30,31 @@ bun run db:generate      # regenerate the client
 bun run db:push          # then align the database itself (dev)
 ```
 
+## npm warns `install scripts not yet covered by allowScripts` (npm 11.19+)
+
+Newer npm blocks dependency lifecycle scripts until they are approved. **This repository already ships the required approvals** in `package.json` → `allowScripts` (Prisma CLI/client/engines, `@swc/core`, `@parcel/watcher`, `unrs-resolver`, `es5-ext`), so a plain `npm install` is enough — no action needed.
+
+- A warning about **2 packages (`deepmerge-ts`, `react-syntax-highlighter`)** is expected and harmless: their `prepare` scripts only run inside their own repositories and are never executed when you install them as dependencies.
+- If you add a **new** dependency that ships an install script, approve it once (then `npm rebuild` if the package needs its script to function):
+  ```bash
+  npm install-scripts ls                 # review
+  npm install-scripts approve <pkg>      # allow — writes to package.json, commit that
+  ```
+- Consequences of NOT approving (if you stripped the allowlist): `@prisma/engines` does not pre-download engines and `@prisma/client` does not auto-generate at install time. The project's own `postinstall` (`scripts/prisma-generate.cjs`) normally recovers both; if even that fails, the install/build now fails LOUDLY with exact remediation instead of producing a broken runtime.
+
+## Tables exist but the app is empty — "who creates tables and seeds?"
+
+Nothing between `npm install` and the running app creates tables or seeds **by design** (auto-DDL inside a lifecycle hook could fire against whatever `DATABASE_URL` is set — including a production database). The responsibility is explicit:
+
+| Context | Creates tables + seed |
+|---|---|
+| Local SQLite, first run | **`npm run setup`** (generate → `db push` → seed → verify counts) |
+| Local, manual | `npm run db:push` then `npm run db:seed` |
+| Vercel / PostgreSQL | the build itself: `vercel-build` → `scripts/prisma-deploy-db.cjs` (migrate deploy + auto-baseline + seed + verify, all failures fatal) |
+| Production without demo data | deploy with `SKIP_SEED=1`, then bootstrap the owner at `/webmaster/setup` |
+
+If `npm run db:seed` fails with `bun: command not found` (older releases hard-coded bun): update — `db:seed` now runs via `scripts/seed-run.cjs` with plain Node and falls back through bun → npx tsx automatically.
+
 ## Images not loading
 
 - Seeded imagery lives under `/images/...` (`public/images/`); uploads under `/uploads/...` (`public/uploads/`). Paths in DB rows are URL paths — the files must exist under `public/`.

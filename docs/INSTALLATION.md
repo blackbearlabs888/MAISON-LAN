@@ -4,9 +4,9 @@ Time: ~5 minutes (SQLite, no database server needed).
 
 ## 0. Prerequisites
 
-- **Node.js 20+** or **Bun 1.x** (Bun recommended; the seed script runs with `bun`).
+- **Node.js 20+** (npm) **or Bun 1.x** — everything (seed included) runs with plain Node; Bun is optional.
 - Git (to clone).
-- Outbound internet for `bun install` and Google Fonts (via `next/font` at build time).
+- Outbound internet for the package install and Google Fonts (via `next/font` at build time).
 
 ## 1. Get the code
 
@@ -21,7 +21,19 @@ cd maison-elan
 bun install        # or: npm install
 ```
 
-## 3. Configure the environment
+> **npm 11.19+ users:** npm gates dependency install scripts behind an allowlist. This repository already ships an `allowScripts` map in `package.json` (Prisma CLI/client/engines, `@swc/core`, `@parcel/watcher`, `unrs-resolver`, `es5-ext`), so `npm install` runs everything it needs with **no action required**. You may still see a harmless warning about 2 packages (`deepmerge-ts`, `react-syntax-highlighter`) — their `prepare` scripts only run inside their own repos and are never executed on install. Only if you add a new dependency that ships an install script, approve it once: `npm install-scripts approve <pkg>`.
+
+## 3. One-command setup (recommended)
+
+```bash
+npm run setup      # or: bun run setup
+```
+
+That single command runs, in order: generate the Prisma Client → create tables (`prisma db push`) → seed demo data (ensure mode) → print per-table row counts as proof. It **refuses to run** against a `postgres://` URL or on Vercel (remote provisioning belongs to the deploy build), so it is safe to run on any local machine.
+
+Prefer doing it manually, or re-running steps later? See §4–5 below.
+
+## 4. Manual path — configure the environment
 
 ```bash
 cp .env.example .env
@@ -31,27 +43,27 @@ Edit `.env`:
 
 | Variable | Required | Default / example |
 |---|---|---|
-| `DATABASE_URL` | ✅ | `file:./db/custom.db` (SQLite file, created by step 4) |
+| `DATABASE_URL` | ✅ | `file:./db/custom.db` (SQLite file, created by step 5) |
 | `APP_URL` | — | `http://localhost:3000` (set your public URL in production) |
 | `TELEGRAM_BOT_TOKEN` | — | from @BotFather (see `docs/TELEGRAM-SETUP.md`) |
 | `TELEGRAM_CHAT_ID` | — | your operator chat/group id |
 
 The DB file resolves relative to the `prisma/` schema directory, so `file:./db/custom.db` creates `db/custom.db` in the project root (already the case in this repository).
 
-## 4. Create the database schema
+## 5. Create the database schema
 
 ```bash
-bun run db:push
+bun run db:push     # or: npm run db:push
 ```
 
 This syncs `prisma/schema.prisma` to SQLite and creates `db/custom.db`. If you later edit the schema, re-run `db:push` (local SQLite dev) — PostgreSQL deployments use version-controlled migrations instead (`prisma/migrations/` + `bun run db:migrate:deploy`, applied automatically on every deploy — see `docs/DATABASE.md` §10).
 
-## 5. Choose your account path
+## 6. Choose your account path
 
 ### Option A — Development/demo install: seed
 
 ```bash
-bun run db:seed
+bun run db:seed    # or: npm run db:seed (runs with plain Node — bun not required)
 ```
 
 Idempotent seed (safe to re-run): settings singleton, 3 demo accounts, 5 categories, 14 products with variants/images, 2 banners, 3 couriers with rates, 7 CMS pages, FAQ entries.
@@ -70,7 +82,7 @@ Available **only while zero OWNER accounts exist**. Create your single owner acc
 
 Additional staff accounts (ADMIN/ORDER_MANAGER/CONTENT_MANAGER) currently have **no UI** — create them directly in the database (Prisma Studio or SQL). Honest, documented procedure: `docs/WEBMASTER-GUIDE.md` § "Adding staff accounts".
 
-## 6. Run
+## 7. Run
 
 ```bash
 bun run dev            # development, http://localhost:3000 (logs → dev.log)
@@ -85,7 +97,7 @@ bun run start          # NODE_ENV=production, logs → server.log
 
 Production deployment details (reverse proxy, HTTPS, migrations on the server): `docs/DEPLOYMENT.md`.
 
-## 7. Verification checklist
+## 8. Verification checklist
 
 Run through every item:
 
@@ -98,7 +110,7 @@ Run through every item:
 - [ ] Place a test order (checkout → bank-transfer instructions shown) → it appears in `/webmaster/orders`; `/track` finds it with order number + email.
 - [ ] `bun run lint` exits clean.
 
-## 8. Production notes
+## 9. Production notes
 
 - **PostgreSQL** — a ready-made `prisma/schema.postgres.prisma` + `prisma/migrations/` ship with the repo; money is integer cents, so the switch is numerically safe. Point `DATABASE_URL`/`DIRECT_DATABASE_URL` at Postgres, run `bun run db:migrate:deploy` (or just deploy to Vercel — the build provisions the database, migrates, seeds and verifies automatically). Details: `README.md` § Switching SQLite → PostgreSQL and `docs/DEPLOYMENT-VERCEL.md`.
 - **`NODE_ENV=production`** — set by `bun run start`; it flips the session cookie to `Secure` (HTTPS required) and hides the dev-only password-reset token.

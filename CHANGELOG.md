@@ -3,6 +3,32 @@
 All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/); this project does not yet use semantic versioning for public releases.
 
+## [0.4.3] — Provisioning chain proven on real PostgreSQL + Vercel build command pinned
+
+Report from the field: "deployed to Vercel on Neon — no tables created". The shipped chain was re-proven end-to-end against a **real PostgreSQL 18** (embedded, same protocol Neon speaks), and the one ambiguity that could still bypass provisioning on Vercel (dashboard Build Command override silently skipping `vercel-build`) is now structurally impossible.
+
+### Added
+- **`vercel.json`** pinning `installCommand: "npm install"` + `buildCommand: "npm run vercel-build"` — overrides any accidental Build Command/Install Command typed into the Vercel dashboard (the #1 way to end up with a deployed site and an empty Neon database). `vercel.json` takes precedence over Project Settings.
+- **`scripts/seed-run.cjs`** — runner-agnostic seed launcher (bun → npx tsx → bunx tsx). `db:seed` no longer hard-codes `bun`; npm-only machines can seed.
+- **`scripts/setup-db.cjs` + `npm run setup`** — one-command local first-run: generate client → create tables (`db push`) → seed → verify counts. Refuses to run against `postgres://` or on Vercel (remote provisioning belongs to the deploy build).
+- **`allowScripts` in `package.json`** — approvals for the 7 packages whose lifecycle scripts npm 11.19+ gates by default (Prisma CLI/client/engines, `@swc/core`, `@parcel/watcher`, `unrs-resolver`, `es5-ext`); buyers get a clean, fully-functional `npm install` with no action required.
+
+### Changed
+- `scripts/prisma-generate.cjs` v2 — **fails loud**: verifies `node_modules/.prisma/client/index.js` actually exists after generation; all-runners-failed → exit 1 with exact remediation (was: silent warning + exit 0 — the same anti-pattern that caused the original empty-DB incident). Escape hatch: `PRISMA_GENERATE_SOFT_FAIL=1`.
+- `db:seed` / `db:seed:pg` / `db:seed:force` / `db:verify` / `prisma.seed` now route through `scripts/seed-run.cjs`; `db:seed:force` uses the `--force` flag (an `ENV=…` prefix breaks on Windows npm).
+
+### Verified on real PostgreSQL 18 (build-log evidence, scripts/prisma-deploy-db.cjs v2)
+- **Empty database (first deploy):** `migrate deploy` applies `0_init` → drift check passes → seed creates 45 rows → `[seed:verify]` counts printed → exit 0.
+- **Tables without migration history (`db push` / SQL dump):** `P3005` → auto-baseline `0_init` (no data touched) → drift check passes → seed fills catalog → exit 0.
+- **Wrong schema (extra `User.fake_col`):** drift check **fails the build (exit 1)** — a baseline can never mark a mismatched schema as valid.
+- **Only `DATABASE_URL` set:** loud fallback warning, provisioning still completes (exit 0).
+- **Unreachable database:** loud fatal (P1001), previous deployment stays live.
+
+### Docs
+- `docs/DEPLOYMENT-VERCEL.md` §4.2 updated for the pinned commands; §7 new decision tree "Deploy succeeded but Neon has no tables".
+- `docs/INSTALLATION.md`: `npm run setup` as the recommended first-run path; npm 11.19+ `allowScripts` note.
+- `docs/TROUBLESHOOTING.md`: who-creates-tables-and-seeds responsibility table; install-scripts warning explained.
+
 ## [0.4.1] — Audit reconciliation: dependency scan → 0 vuln, owner-takeover hardening, baseline drift check
 
 The release-gate review of the v0.4.0 audit found document inconsistencies (conflicting test counts), an un-executed dependency scan (BLOCKED), and two unproven security claims (owner bootstrap on Postgres, auto-baseline validity). Everything that could be verified inside the sandbox is now verified with executable evidence; everything that cannot is marked pending Preview. Full evidence: `docs/PRODUCTION_READINESS_AUDIT.md` §11 (C-01…C-05) + §14 (release validation gates).

@@ -108,11 +108,11 @@ git push -u origin main
 
 1. [vercel.com](https://vercel.com) → **Add New… → Project** → import the repo.
 2. Framework preset is auto-detected (**Next.js**). Node.js default (20/22) is fine.
-3. **Leave the Build Command field EMPTY** (do not type `next build` into it).
+3. **Build & Install Commands are pinned by `vercel.json`** (`installCommand: npm install`, `buildCommand: npm run vercel-build`) — it overrides whatever is typed in the dashboard, so the provisioning chain cannot be bypassed by a settings mistake. Leave the dashboard fields alone (empty or anything else — `vercel.json` wins).
 4. Three safety nets run automatically during the build:
-   - `vercel-build` script: `prisma generate` (PostgreSQL client) → `scripts/prisma-deploy-db.cjs` (**pushes the schema to Neon + seeds demo content only if the database is empty**) → `next build`
-   - `postinstall` script (`scripts/prisma-generate.cjs`): detects `VERCEL=1` and generates the **PostgreSQL** client — even if a custom Build Command bypasses `vercel-build`
-   - Seed guard (`prisma/seed.ts`): seeds **only an empty database** — a redeploy never overwrites your users, products or admin-edited content
+   - `vercel-build` (pinned): `prisma generate` (PostgreSQL client) → `scripts/prisma-deploy-db.cjs` (**applies migrations to Neon — creating all tables — then seeds missing rows and verifies row counts**) → `next build`
+   - `postinstall` script (`scripts/prisma-generate.cjs`): detects `VERCEL=1` and generates the **PostgreSQL** client; fails the install loudly if the client cannot be produced
+   - Seed (`prisma/seed.ts` v2): fills **missing** rows every deploy, never deletes, never re-creates demo users once any user exists
 
 ### 4.3 Environment variables
 
@@ -170,6 +170,7 @@ Project → Settings → Domains → add your domain, point DNS as instructed
 
 | Symptom | Fix |
 |---|---|
+| **Deploy succeeded but Neon has NO tables** | Walk the decision tree, in order. **(1)** Open the build log of the CURRENT deployment and search `[prisma-deploy-db]`. **Lines missing** → the provisioning chain never ran: you are deploying **old code** (pre-0.4.x skipped silently) or a copy missing `vercel.json` / `scripts/` — deploy the current release, then **Redeploy with Build Cache OFF**. **Lines present + fatal error** → read it: `P1001` = `DATABASE_URL` wrong/unreachable (Neon compute active?); `P1012` = an env var is malformed. **(2)** Check env var scope: **Settings → Environment Variables → Production + Preview** (a value saved only under "Development" never reaches the build). **(3)** Confirm you inspect the **same Neon project/branch** that `DATABASE_URL` points at — Neon branches have separate tables; the SQL Editor of `main` looks empty if the URL uses another branch. **(4)** A successful build always ends with `[prisma-deploy-db] ✅ Database provisioned and verified` — if you see it, tables exist; re-check step (3). |
 | **`Error validating datasource \`db\`: the URL must start with the protocol \`file:\``** (500 on every page, digest in the corner) | The deployment contains a **SQLite** Prisma Client while `DATABASE_URL` is a `postgresql://` string. Causes: an older release ZIP without Vercel support, or a Build Command override of `next build` that skipped the generate step. Fix: deploy the **latest ZIP**, make sure `scripts/` and `package.json` scripts are intact, **clear the Build Command field** (or set it to `bun run vercel-build`), then **Redeploy with Build Cache OFF** (Deployments → ⋯ → Redeploy). The build log must show `[prisma-generate] Generating Prisma Client from prisma/schema.postgres.prisma …`. |
 | The reverse: `the URL must start with the protocol \`postgresql:\`` | A PostgreSQL client is running against a SQLite URL — you set a `postgres` URL somewhere while deploying the SQLite flow. Follow one guide only, don't mix. |
 | `P1001: Can't reach the database server` | You used the direct string at runtime, or dropped `?sslmode=require`. Runtime must use the **pooled** URL. |
