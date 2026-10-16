@@ -42,6 +42,41 @@ Newer npm blocks dependency lifecycle scripts until they are approved. **This re
   ```
 - Consequences of NOT approving (if you stripped the allowlist): `@prisma/engines` does not pre-download engines and `@prisma/client` does not auto-generate at install time. The project's own `postinstall` (`scripts/prisma-generate.cjs`) normally recovers both; if even that fails, the install/build now fails LOUDLY with exact remediation instead of producing a broken runtime.
 
+## Vercel build fails: `Cannot find module '@tailwindcss/postcss'`
+
+Log signature (Vercel build):
+
+```text
+removed 315 packages, and audited 324 packages in 5s
+...
+Error: Cannot find module '@tailwindcss/postcss'
+    [at require (turbopack:///[turbopack-node]/transforms/postcss.ts?…)]
+```
+
+**Cause** — npm installed **without devDependencies**. npm skips them whenever
+`NODE_ENV=production` is present in the install environment, and a `NODE_ENV`
+variable had been added to Vercel → Settings → Environment Variables (it looks
+harmless; the platform sets the value for you anyway). The audit count gives it
+away: `324 packages` against a 743-entry lockfile (379 production packages
+minus ~55 platform-optional binaries) instead of the full ~743. `prisma
+generate` still worked because `prisma` / `@prisma/client` live in
+`dependencies`.
+
+**Fix (v0.4.5+)** — fixed in code, no dashboard change required:
+
+- `@tailwindcss/postcss`, `tailwindcss`, `tw-animate-css`, `typescript`,
+  `@types/react`, `@types/react-dom` moved from devDependencies to
+  `dependencies` — everything `next build` needs now installs unconditionally;
+- the repo `.npmrc` pins `include=dev`, which overrides npm's NODE_ENV default
+  (verified: `NODE_ENV=production npm config get omit` → `dev` without the
+  file, empty with it).
+
+Deploy v0.4.5+ and **Redeploy with Build Cache OFF** — the restored cache still
+contains the pruned `node_modules`.
+
+**Fix without upgrading:** delete the `NODE_ENV` variable in Vercel, then
+Redeploy with Build Cache OFF.
+
 ## Tables exist but the app is empty — "who creates tables and seeds?"
 
 Nothing between `npm install` and the running app creates tables or seeds **by design** (auto-DDL inside a lifecycle hook could fire against whatever `DATABASE_URL` is set — including a production database). The responsibility is explicit:

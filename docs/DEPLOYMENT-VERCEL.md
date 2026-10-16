@@ -125,6 +125,14 @@ git push -u origin main
 | `APP_URL` | `https://<your-deployment>.vercel.app` — **no trailing slash** | Telegram deep-links, robots & sitemap. `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_SITE_URL` are accepted as fallbacks if already set; update after adding a custom domain |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | *(optional)* | better: set in the web UI, `/webmaster/notifications` (stored in DB, wins over ENV) |
 
+> **⚠️ NEVER add `NODE_ENV` to this list.** Vercel already sets it — the
+> variable has no effect you want, and one it does have is nasty: npm then
+> **omits devDependencies** during the build install and `next build` dies with
+> `Cannot find module '@tailwindcss/postcss'` (log signature:
+> `audited ~324 packages` instead of ~743). Since v0.4.5 the template is immune
+> anyway — every build-time tool ships in `dependencies` and the repo `.npmrc`
+> pins `include=dev` — but delete the variable regardless (§7).
+
 **Recommended:** Project → Settings → Functions → **Region** → pick the same
 region as your Neon project (e.g. Singapore) — keeps DB round-trips at a few ms.
 
@@ -164,13 +172,14 @@ Project → Settings → Domains → add your domain, point DNS as instructed
 | **SQLite** | Not available on Vercel (ephemeral disk) — that is why this guide uses Neon. |
 | **Sessions** | Stored in the database (`Session` table) — works on serverless out of the box. |
 | **Cron / background jobs** | None required; notifications are sent inline on order events. |
-| **`NODE_ENV`** | Set to `production` by Vercel automatically — session cookies become `Secure`. |
+| **`NODE_ENV`** | Set to `production` by Vercel automatically — session cookies become `Secure`. **Never add it as a project env var**: npm then skips devDependencies during the build install (pre-0.4.5 → `Cannot find module '@tailwindcss/postcss'`; v0.4.5+ is guarded — see §4.3 and §7). |
 
 ## 7. Troubleshooting
 
 | Symptom | Fix |
 |---|---|
 | **Deploy succeeded but Neon has NO tables** | Walk the decision tree, in order. **(1)** Open the build log of the CURRENT deployment and search `[prisma-deploy-db]`. **Lines missing** → the provisioning chain never ran: you are deploying **old code** (pre-0.4.x skipped silently) or a copy missing `vercel.json` / `scripts/` — deploy the current release, then **Redeploy with Build Cache OFF**. **Lines present + fatal error** → read it: `P1001` = `DATABASE_URL` wrong/unreachable (Neon compute active?); `P1012` = an env var is malformed. **(2)** Check env var scope: **Settings → Environment Variables → Production + Preview** (a value saved only under "Development" never reaches the build). **(3)** Confirm you inspect the **same Neon project/branch** that `DATABASE_URL` points at — Neon branches have separate tables; the SQL Editor of `main` looks empty if the URL uses another branch. **(4)** A successful build always ends with `[prisma-deploy-db] ✅ Database provisioned and verified` — if you see it, tables exist; re-check step (3). |
+| **Build fails: `Cannot find module '@tailwindcss/postcss'`** | npm **skipped devDependencies** during install — caused by a `NODE_ENV=production` variable in Project → Settings → Environment Variables (log signature: `removed … packages, and audited ~324 packages` on a ~743-package lockfile). **v0.4.5+ fixes it in code** (build tools moved to `dependencies`, repo `.npmrc` pins `include=dev`): deploy the latest release and **Redeploy with Build Cache OFF** — the cache holds the pruned `node_modules`. Delete the `NODE_ENV` variable too; the platform sets it for you. |
 | **`Error validating datasource \`db\`: the URL must start with the protocol \`file:\``** (500 on every page, digest in the corner) | The deployment contains a **SQLite** Prisma Client while `DATABASE_URL` is a `postgresql://` string. Causes: an older release ZIP without Vercel support, or a Build Command override of `next build` that skipped the generate step. Fix: deploy the **latest ZIP**, make sure `scripts/` and `package.json` scripts are intact, **clear the Build Command field** (or set it to `bun run vercel-build`), then **Redeploy with Build Cache OFF** (Deployments → ⋯ → Redeploy). The build log must show `[prisma-generate] Generating Prisma Client from prisma/schema.postgres.prisma …`. |
 | The reverse: `the URL must start with the protocol \`postgresql:\`` | A PostgreSQL client is running against a SQLite URL — you set a `postgres` URL somewhere while deploying the SQLite flow. Follow one guide only, don't mix. |
 | `P1001: Can't reach the database server` | You used the direct string at runtime, or dropped `?sslmode=require`. Runtime must use the **pooled** URL. |

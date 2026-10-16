@@ -3,6 +3,21 @@
 All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/); this project does not yet use semantic versioning for public releases.
 
+## [0.4.5] — Vercel build survives `NODE_ENV=production` (devDependencies pruning)
+
+Field report: DB provisioning finally green end-to-end on Vercel + Neon (migrations applied, drift check passed, seed verified — visible in the buyer's own build log), but `next build` died with `Cannot find module '@tailwindcss/postcss'`. The log signature — `removed 315 packages, and audited 324 packages` against a 743-entry lockfile (379 production packages − ~55 platform-optional binaries = 324) — proved npm had **omitted devDependencies**: the project carried a `NODE_ENV` variable in Vercel's environment settings (leftover reviewed back in Task 21; harmless to the app, but npm reads it as `omit=dev` during install). `prisma generate` survived only because `prisma`/`@prisma/client` were already in `dependencies`.
+
+### Changed
+- **Build-critical packages moved `devDependencies` → `dependencies`**: `@tailwindcss/postcss`, `tailwindcss`, `tw-animate-css` (all imported via `postcss.config.mjs` / `globals.css`), plus `typescript`, `@types/react`, `@types/react-dom` (required by `next build` type-checking). `eslint`, `eslint-config-next`, `bun-types` stay dev-only (never needed at build).
+- **`.npmrc` added with `include=dev`** — belt and braces: verified locally that `NODE_ENV=production npm config get omit` → `dev` without the file, empty with it. A misplaced NODE_ENV can no longer prune the build tree.
+- `package-lock.json` regenerated (production tree 379 → 424 entries; `@tailwindcss/postcss`, `tailwindcss`, `typescript` no longer carry the `dev` flag) · `bun.lock` synced.
+
+### Docs
+- DEPLOYMENT-VERCEL §4.3 (env-var warning), §6 (NODE_ENV row), §7 (new troubleshooting row) · TROUBLESHOOTING (full entry with log signature and math) · ENVIRONMENT_VARIABLES (NODE_ENV row strengthened).
+
+### Verified (dev runtime, SQLite)
+Lockfile ↔ manifest consistency via `npm ci --dry-run` · moved packages confirmed un-flagged in the lock · `bun run lint` clean · **34/34 tests (129 assertions)**.
+
 ## [0.4.4] — Image upload restored & made production-portable (database-backed media)
 
 Found while auditing "does anything in the code still assume local SQLite/disk only?": the webmaster's **upload button was a guaranteed 404** — `webmaster-client.ts`, `ImageUrlField` and the product editor all POST to `/api/upload`, but the route had been **deleted in an earlier refactor** (`52f15cb`), leaving the client half orphaned. Worse, the deleted implementation wrote to `public/uploads/`, which is inherently broken on Vercel's **read-only filesystem** (it exited 507 there by design) — the exact "works locally, not in production" trap this release removes. Docs were split between "uploads not implemented" (audit A-07) and a fully-documented disk sink (CUSTOMIZATION/ARCHITECTURE/DECISIONS D-10); all three now match the shipped reality.
