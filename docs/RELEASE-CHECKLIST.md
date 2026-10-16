@@ -12,7 +12,7 @@ Run every gate before tagging a release or handing an install to a client. Nothi
 
 - [ ] `git clone` → `bun install` succeeds.
 - [ ] `cp .env.example .env` → `bun run db:push` creates the schema without errors.
-- [ ] On a **clean DB** (fresh `db/custom.db`): `bun run db:seed` completes and prints the three dev accounts; re-running the seed does **not** duplicate anything (idempotency check).
+- [ ] On a **clean DB** (fresh `db/custom.db`): `bun run db:seed` completes and prints the three dev accounts; re-running the seed prints “Nothing to do — every seed row already exists” (ensure-exists idempotency check).
 
 ## 3. Auth bootstrap
 
@@ -35,7 +35,7 @@ Re-run `docs/TESTING.md` § 3: auth 401s, fake-rate rejection (400), stock guard
 ## 7. Data safety
 
 - [ ] Backup of `db/custom.db` + `public/uploads/` taken **and restore rehearsed** (`docs/BACKUP-RESTORE.md` § 4) on the release candidate.
-- [ ] If PostgreSQL: `pg_dump` restore drill done; datasource provider switched in `prisma/schema.prisma`.
+- [ ] If PostgreSQL: `pg_dump` restore drill done; `DATABASE_URL`/`DIRECT_DATABASE_URL` point at Postgres (no schema edit needed — `prisma/schema.postgres.prisma` + `prisma/migrations/` ship with the repo).
 
 ## 8. Production hardening
 
@@ -50,3 +50,13 @@ Re-run `docs/TESTING.md` § 3: auth 401s, fake-rate rejection (400), stock guard
 - [ ] Version bumped (`CHANGELOG.md` entry with date + highlights).
 - [ ] Tag: `git tag -a vX.Y.Z -m "..."` and push.
 - [ ] Announce known limitations (`docs/KNOWN-ISSUES.md`) to the client alongside the delivery notes.
+
+## 10. Deployment ZIP (Vercel handoff)
+
+Build the handoff ZIP from the tree root — and verify the package **from inside** before sending:
+
+- [ ] `.env.example` exists in the tree **and** inside the ZIP (regression B-01 shipped a ZIP whose source tree had lost the file — always re-check after any cleanup).
+- [ ] `prisma/migrations/0_init/migration.sql` + `prisma/migrations/migration_lock.toml` are inside the ZIP (without them the deploy cannot migrate a fresh database).
+- [ ] `scripts/prisma-deploy-db.cjs`, `scripts/prisma-generate.cjs`, `prisma/seed.ts` present; `unzip -p … package.json | rg vercel-build` shows the generate → deploy-db → build chain.
+- [ ] Leak scan on the package: `unzip -p <zip> - '*.ts' '*.tsx' '*.md' | rg -i "(postgres|postgresql)://[^\s\"]*:[^\s\"]*@"` returns nothing.
+- [ ] Checksum recorded (`sha256sum <zip>`) and compared after copying to `public/` for the download endpoint.

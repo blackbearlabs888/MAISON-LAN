@@ -184,12 +184,34 @@ One row per Telegram attempt. `event` (`ORDER_CREATED | PAYMENT_CONFIRMED | ORDE
 
 ## 10. Migration workflow
 
+Two tracked paths ship side by side (v0.4.0):
+
+- **PostgreSQL/Neon (deployments)** — version-controlled migrations under
+  `prisma/migrations/` (baseline `0_init` + `migration_lock.toml`). Every
+  deploy runs `prisma migrate deploy`; a database that already has tables but
+  no history is auto-baselined (`prisma migrate resolve --applied 0_init`).
+- **SQLite (local dev)** — direct schema sync, no migrations involved.
+
 | Command | When to use |
 |---|---|
-| `bun run db:push` | **Dev.** Syncs `schema.prisma` to the DB directly (uses `--accept-data-loss`; destructive changes can drop data) |
+| `bun run db:push` | **Local dev (SQLite).** Syncs `schema.prisma` to the DB directly (uses `--accept-data-loss`; destructive changes can drop data) |
 | `bun run db:generate` | After schema edits, to refresh the Prisma client (also run if the client seems stale) |
-| `bun run db:migrate` | **Production path.** `prisma migrate dev` — creates SQL migration files under `prisma/migrations/` giving a reviewable, replayable history |
-| `bun run db:reset` | Drops and recreates the DB from migrations (confirm prompt; dev only) |
-| `bun run db:seed` | Idempotent demo seed — safe to re-run; skips rows that already exist. Dev/demo only |
+| `bun run db:migrate:deploy` | **Deploy path (Postgres).** Applies pending migrations under `prisma/migrations/` — run automatically inside `vercel-build` |
+| `bun run db:migrate:status` | Inspect which migrations are applied/pending on the target database |
+| `bun run db:baseline` | One-time: mark `0_init` as already applied on a database whose tables pre-date migration tracking (the deploy script does this automatically) |
+| `bun run db:reset:sqlite` | **Local dev reset.** Drops + recreates the SQLite database (no migrations involved) |
+| `bun run db:seed` | Idempotent demo seed (v2, ensure-exists) — fills missing rows, never deletes, never overwrites admin edits. Dev/demo only |
+| `bun run db:seed:force` | Repair mode: resets demo passwords + restores canonical demo fields (deletes nothing) |
+| `bun run db:verify` | Read-only row-count check (`prisma/seed.ts --verify`) |
 
-Recommended production flow: develop with `db:push`, then cut a migration with `db:migrate` before deploy and apply it on the server (`prisma migrate deploy` — see `docs/DEPLOYMENT.md`). Always back up `db/custom.db` first (see `docs/BACKUP-RESTORE.md`).
+Creating a new migration after a schema edit (locally, against a disposable
+database — never against production):
+
+```bash
+DATABASE_URL="postgresql://…direct…" DIRECT_DATABASE_URL="postgresql://…direct…" \
+  bunx prisma migrate dev --schema prisma/schema.postgres.prisma --name describe_the_change
+```
+
+Review the generated SQL under `prisma/migrations/`, commit it, and the next
+deploy applies it via `migrate deploy`. `db push` (`db:push:pg`) remains as an
+emergency repair tool only. Always back up first (`docs/BACKUP-RESTORE.md`).

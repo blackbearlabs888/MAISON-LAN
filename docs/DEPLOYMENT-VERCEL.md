@@ -23,13 +23,20 @@ Step-by-step production installation: **Neon** (serverless PostgreSQL) for data,
 They look like:
 
 ```text
-DATABASE_URL        = postgresql://USER:PASS@ep-xxx-pooler.ap-southeast-1.aws.neon.tech/maisonelan?sslmode=require
+DATABASE_URL        = postgresql://USER:PASS@ep-xxx-pooler.ap-southeast-1.aws.neon.tech/maisonelan?sslmode=require&pgbouncer=true
 DIRECT_DATABASE_URL = postgresql://USER:PASS@ep-xxx.ap-southeast-1.aws.neon.tech/maisonelan?sslmode=require
 ```
 
 > **Why two?** App runtime uses Neon's connection pooler (serverless-safe);
 > schema operations (`db push` / `migrate`) must go through the direct string.
 > This is the official Neon × Prisma setup via `directUrl`.
+>
+> **⚠️ `pgbouncer=true` is REQUIRED on the pooled URL.** Neon's pooler runs
+> PgBouncer in transaction mode; Prisma's named prepared statements collide
+> under concurrent requests without the flag (classic symptom: storefront
+> works but the webmaster dashboard's parallel queries throw
+> `prepared statement "s_x" already exists` → "Something went wrong").
+> The direct URL must NOT carry the flag.
 
 ## 2. Prepare the code
 
@@ -168,9 +175,9 @@ Project → Settings → Domains → add your domain, point DNS as instructed
 | `P1001: Can't reach the database server` | You used the direct string at runtime, or dropped `?sslmode=require`. Runtime must use the **pooled** URL. |
 | `Environment variable not found: DIRECT_DATABASE_URL` | Set it in `.env` (local CLI) or Vercel env vars (build). |
 | Error: *client generated for sqlite* / `sqlite does not support…` at runtime | The Postgres client wasn't generated — run `bun run db:generate:pg` locally, and confirm the `vercel-build` script wasn't removed in `package.json`. |
-| `P3006` / missing tables after deploy | The build-time `prisma db push` failed — open **Deployments → Build Logs** and search `[prisma-deploy-db]`. Usually a wrong/unreachable `DATABASE_URL`, or a destructive schema change (see §8). |
-| **Deploy succeeded but the store is empty / seed "tidak muncul"** | Check the build log for the `[prisma-deploy-db]` steps. `Seed skipped` → the database already has users, so the guard protected your data (by design). Want demo data anyway: set env `SEED_FORCE=1`, redeploy, remove the variable afterwards. `Seed FAILED` → run `bun run db:generate:pg && bun run db:seed:pg` locally against `.env` with the Neon strings. |
-| Build fails with `[prisma-deploy-db] Schema push FAILED` | `DATABASE_URL`/`DIRECT_DATABASE_URL` wrong or unreachable from Vercel, or the schema change needs data loss (§8). The previous deployment stays live — fix the env/schema and redeploy. |
+| `P3006` / missing tables after deploy | The build-time migrations failed — open **Deployments → Build Logs** and search `[prisma-deploy-db]` Step 1/3. Usually a wrong/unreachable `DATABASE_URL`, or a failed migration (see §8). |
+| **Deploy succeeded but the store is empty / seed "tidak muncul"** | Fixed in v0.4.0: the seed no longer skips on a non-empty database — every deploy **fills missing rows** (keyed by email/slug/SKU) and the build ends with a `[seed:verify]` row-count table as proof. An empty catalog now **fails the build** instead of shipping silently. For a store that still shows empty data: redeploy once with env `SEED_FORCE=1` (repairs seed rows, resets demo passwords, deletes nothing), then remove the variable. |
+| Build fails with `[prisma-deploy-db] Migration failed` / `prisma migrate deploy FAILED` | `DATABASE_URL`/`DIRECT_DATABASE_URL` wrong or unreachable from Vercel, or a migration needs data loss (§8). The previous deployment stays live — fix the env/schema and redeploy. First deploy onto a database that already has tables: the script auto-baselines `0_init` (no data change); manual fallback `bun run db:baseline`. |
 | Upload button in webmaster fails with 507 | Expected on Vercel — see §6 Media uploads. |
 | 401 loops after login | Set `APP_URL` to the exact URL users browse (scheme + host), then redeploy. |
 | **`Invalid email or password` for every password** | The `User.passwordHash` in Neon is not a real bcrypt hash (valid = exactly 60 chars, random `./A-Za-z0-9` — no repeating patterns, e.g. `…FYMq`, never `V5V5V5…`). Happens when a user row was inserted manually with a placeholder hash. Fix: `bun run hash:password "NewPassword123!"` → paste the printed hash into `UPDATE "User" SET "passwordHash" = '<hash>' WHERE email = '…';` (Neon SQL Editor) — or delete the row and use `/webmaster/setup`. See `docs/TROUBLESHOOTING.md`. |
@@ -181,14 +188,23 @@ Project → Settings → Domains → add your domain, point DNS as instructed
 git pull                         # after local changes are pushed
 ```
 
-Schema changes during development: edit `prisma/schema.postgres.prisma`
-(keep both schemas in sync — they differ only in the datasource block), then
-just `git push`. Every deploy runs `prisma db push` automatically, so **new
-tables and columns are applied during the build** — no manual step needed.
-
-Destructive changes (dropping columns, changing types) make the build fail on
-purpose — apply them manually once, with the direct string in `.env`:
+Schema changes: edit `prisma/schema.postgres.prisma` (keep both schemas in
+sync — they differ only in the datasource block), create a migration, commit
+it, then just `git push`:
 
 ```bash
-bun run db:push:pg               # add --accept-data-loss consciously
+# locally, once per schema change:
+DATABASE_URL="postgresql://…direct…" DIRECT_DATABASE_URL="postgresql://…direct…" \
+  bunx prisma migrate dev --schema prisma/schema.postgres.prisma --name describe_the_change
 ```
+
+Every deploy runs `prisma migrate deploy` automatically, so **committed
+migrations are applied during the build** — no manual step needed. Never run
+`migrate dev` against production; it is a local-only tool.
+
+Destructive changes (dropping columns, changing types) will surface when you
+create the migration locally — review the generated SQL before committing.
+For an emergency one-off schema sync you can still use the repair tool
+`bun run db:push:pg` (accepts data loss — use consciously). It leaves the
+migration table untouched; afterwards `bun run db:migrate:status` will report
+the drift so you can reconcile with a new migration.

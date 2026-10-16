@@ -113,11 +113,15 @@ All commands match `package.json` exactly:
 | `bun run build` | `next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/` | Production build into a standalone server bundle |
 | `bun run start` | `NODE_ENV=production bun .next/standalone/server.js 2>&1 \| tee server.log` | Runs the standalone production server (logs to `server.log`) |
 | `bun run lint` | `eslint .` | ESLint over the repo — the shipped quality gate |
-| `bun run db:push` | `prisma db push --accept-data-loss` | Sync `prisma/schema.prisma` → database (dev workflow) |
+| `bun run db:push` | `prisma db push --accept-data-loss` | Sync `prisma/schema.prisma` → database (local SQLite dev workflow) |
 | `bun run db:generate` | `prisma generate` | (Re)generate the Prisma client after schema edits |
-| `bun run db:migrate` | `prisma migrate dev` | Create/apply local migrations (recommended for production schema changes) |
-| `bun run db:reset` | `prisma migrate reset` | Drop & recreate DB, re-apply migrations (`--skip-seed` not set — will prompt) |
-| `bun run db:seed` | `bun prisma/seed.ts` | Idempotent demo seed (safe to re-run) |
+| `bun run db:migrate:deploy` | `prisma migrate deploy --schema prisma/schema.postgres.prisma` | Apply pending Postgres migrations (runs automatically in every deploy) |
+| `bun run db:migrate:status` | `prisma migrate status --schema …` | Show applied/pending migrations on the target database |
+| `bun run db:baseline` | `prisma migrate resolve --applied 0_init --schema …` | Mark the baseline migration as applied on a pre-existing database |
+| `bun run db:reset:sqlite` | `prisma db push --force-reset` | Drop & recreate the local SQLite database (dev only) |
+| `bun run db:seed` | `bun prisma/seed.ts` | Idempotent demo seed — fills missing rows, never deletes (safe to re-run) |
+| `bun run db:seed:force` | `SEED_FORCE=1 bun prisma/seed.ts` | Repair demo rows: reset demo passwords + restore canonical demo fields |
+| `bun run db:verify` | `bun prisma/seed.ts --verify` | Read-only row-count check of the core tables |
 
 ## White-label branding guide
 
@@ -142,9 +146,10 @@ The schema is deliberately portable; money is stored as **integer cents** (no DE
 2. Recreate the schema and (optionally) re-seed:
 
    ```bash
-   bun run db:push:pg        # prisma db push --schema prisma/schema.postgres.prisma
-   bun run db:generate:pg    # regenerate the client for PostgreSQL
-   bun run db:seed           # demo data only — skip for a real store
+   bun run db:migrate:deploy   # apply prisma/migrations/ to your Postgres database
+   bun run db:baseline         # only if the tables already existed without migration history
+   bun run db:generate:pg      # regenerate the client for PostgreSQL
+   bun run db:seed             # demo data only — skip for a real store
    ```
 
 That's the whole migration. Status "enums" are validated strings and JSON blobs are stored in `String` columns, both of which work unchanged on PostgreSQL.

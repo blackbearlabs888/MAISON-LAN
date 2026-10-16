@@ -62,6 +62,7 @@ Browser ── HTTPS ── Vercel (Next.js 16, standalone off on Vercel)
 
 | # | Check | Expect |
 |---|---|---|
+| 0 | `GET /api/health` | 200 `{"status":"ok","db":"reachable","schema":true,"seeded":…}` — `seeded:false` on an intentionally-empty store is fine; `schema:false` or `db:"unreachable"` = stop and fix first (see TROUBLESHOOTING) |
 | 1 | `GET /` renders hero + products | 200, no error boundary |
 | 2 | `GET /sitemap.xml`, `/robots.txt` | 200, correct domain |
 | 3 | Add to cart → checkout → place order | 201; success page shows the order **with `?email=` in URL** (new gate) |

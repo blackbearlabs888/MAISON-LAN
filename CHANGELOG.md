@@ -3,6 +3,50 @@
 All notable changes to this project are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/); this project does not yet use semantic versioning for public releases.
 
+## [0.4.1] — Audit reconciliation: dependency scan → 0 vuln, owner-takeover hardening, baseline drift check
+
+The release-gate review of the v0.4.0 audit found document inconsistencies (conflicting test counts), an un-executed dependency scan (BLOCKED), and two unproven security claims (owner bootstrap on Postgres, auto-baseline validity). Everything that could be verified inside the sandbox is now verified with executable evidence; everything that cannot is marked pending Preview. Full evidence: `docs/PRODUCTION_READINESS_AUDIT.md` §11 (C-01…C-05) + §14 (release validation gates).
+
+### Security
+- **C-02 (high) — owner-takeover path closed:** seed no longer re-creates missing demo users once any user exists. Previously, a buyer who deleted `owner@maisonelan.dev` (or renamed their account) silently got it back — with its publicly documented password — on the next deploy. Demo users are now created **only on an empty users table** (fresh demo install); existing demo accounts keep the invalid-hash self-heal and the explicit `SEED_FORCE=1` repair. Proven by new I-11 cases (populated DB ⇒ zero users created; fresh empty DB ⇒ 3 demo users).
+- **C-03 (high) — owner bootstrap race on PostgreSQL closed:** the A-08 transaction only serialized bootstraps on SQLite (single writer); under Postgres READ COMMITTED two concurrent first-run submissions could both observe `ownerCount === 0` and create two OWNER accounts. `/api/webmaster/setup` now takes a transaction-scoped `pg_advisory_xact_lock(742191117)` on Postgres; the loser re-reads the count and gets 409.
+- **C-01 (critical) — dependency vulnerabilities 24 → 0:** first real scan (`npm audit --omit=dev`) found **2 critical** (`next` Image-Optimizer DoS + HTTP deserialization, `next-auth` email-normalizer bypass) and 14 high. Remediation: `next ^16.4.2`, `next-auth ^4.24.15`, `next-intl ^4.14.9`, `uuid ^11.1.1`, `sharp ^0.35.5`, `prisma`/`@prisma/client` pinned `6.12.0` (below the 6.13.0-dev…7.10.0 advisory range), `overrides: { "defu": "^6.1.7" }`; orphan dependencies `@mdxeditor/editor` and `react-syntax-highlighter` **removed** (imported nowhere in `src/`); `bun.lock` + generated `package-lock.json` shipped. Re-scan: **0 vulnerabilities**.
+
+### Fixed
+- **C-04 (high) — auto-baseline could mark a wrong schema as valid:** the baseline trigger matched broad phrases (`already exists` also appears in unrelated failures), and baselining only fixes migration *history*. `scripts/prisma-deploy-db.cjs` now (a) triggers a baseline **only** on the official P3005 signature, and (b) runs a **Step 1b drift check** (`prisma migrate diff --from-url … --to-schema-datamodel --script`) after provisioning — any live-vs-shipped schema difference **fails the deploy** with remediation steps (`SKIP_DRIFT_CHECK=1` is the documented escape hatch; a tool failure degrades to a loud warning, never a false PASS). The shipped `0_init` was additionally proven byte-identical to a fresh regeneration from the datamodel.
+- **C-05 (low):** the `prisma-deploy-db.cjs` connection-string hint said "ends with `?pgbouncer=true`" — dropping `sslmode=require`. Corrected to `?sslmode=require&pgbouncer=true`; full Neon guidance re-verified against the shipped stack (Prisma 6.12.0, prisma-client-js, no driver adapters).
+
+### Tests
+- Suite grown 33 → **34 tests / 129 assertions** (the single authoritative result; the v0.4.0 addendum's "28 tests / 90 assertions" was a stale historical snapshot). New coverage: S-01 resurrection ban on a populated DB, fresh-install CLI subprocess on an empty throwaway DB (creates 3 demo users, second run inert), plus all prior invariants re-verified on the upgraded dependency set (Next 16.4.2, Prisma 6.12.0).
+
+### Docs
+- `docs/PRODUCTION_READINESS_AUDIT.md`: reconciled to one final test count; dependency scan un-blocked with evidence; new §14 **Release Validation Gates** (4/7 verified from the sandbox; fresh-Neon install, env isolation, live-PG drift/concurrency runs pending the Preview deployment); verdict restated as **READY FOR PREVIEW VALIDATION — production-ready claim is NOT yet earned**.
+- `SECURITY.md`: seed/demo-credential guidance rewritten around the S-01 rule and the `SEED_FORCE` footgun.
+
+## [0.4.0] — Deterministic database bootstrap: migrations + seed v2 + verified deploys
+
+Field report from the first real deploy — *“seed tidak masuk database, dashboard webmaster: Something went wrong. Please try again.”* — exposed four provisioning-chain defects. The whole bootstrap was rebuilt so a deploy can no longer succeed while silently producing an empty/broken store. Full evidence: `docs/PRODUCTION_READINESS_AUDIT.md` §0/§11 (B-01…B-07).
+
+### Fixed
+- **B-02 (critical)** `[prisma-deploy-db]` no longer skips provisioning silently on Vercel when `DATABASE_URL` is missing or SQLite: the build **fails** with the exact remediation steps (was: warn + exit 0 → “successful” deploy with zero tables → generic 500 on every webmaster API).
+- **B-03 (critical)** Seed v2 removes the global skip guard (`users>0 → skip everything`) that left a database with stray rows (manual SQL import) live with an empty catalog. New semantics: **ensure-exists per natural key** — fills every missing row (email/slug/SKU/courier code), never deletes, never overwrites admin-owned rows.
+- **B-04 (high)** Seed failure now **fails the build** (was warn + exit 0). Escape hatch: `SKIP_SEED=1` for real stores that bootstrap via `/webmaster/setup`.
+- **B-05 (high)** Version-controlled migration history shipped: `prisma/migrations/0_init` (25 tables) + `migration_lock.toml`; the deploy chain is now `prisma migrate deploy` with **automatic baselining** for databases whose tables pre-date migration tracking (P3005/“already exists” → `migrate resolve --applied 0_init` → retry — no data touched). `db push` demoted to an emergency repair tool (`db:push:pg`). Risk R-2 from the v0.3.0 audit is **resolved**.
+- **B-06 (medium)** `P1012` (missing/invalid database env var at runtime) now maps to an actionable UI message instead of the generic “Something went wrong.” fallback; empirically verified that the runtime resolves only `url` (`DIRECT_DATABASE_URL` is CLI-only).
+- **B-07 (low)** Self-healing demo accounts: an invalid bcrypt hash on a documented demo account (external SQL-dump damage) is repaired automatically on every deploy so the documented logins always work; `SEED_FORCE=1` additionally resets demo passwords and restores canonical demo fields on demand.
+- **B-01 (critical, regression)** `.env.example` restored to the working tree (it went missing after the v0.3.0 ZIP was cut).
+
+### Added
+- Build-log **verification step**: every deploy ends with `[seed:verify]` per-table row counts — proof in the log that the database actually contains data; `users==0`/`products==0` after seeding fails the build.
+- `tests/invariants.test.ts` extended: 26 → **33 tests / 125 assertions** — new suite I-11 (seed fills exactly once; idempotent re-run; ensure mode never overwrites admin rows; force repairs; broken hashes self-heal; never deletes non-seed rows; verify flags an empty catalog and seed self-repairs it) + P1012 funnel mapping case.
+- Scripts: `db:migrate:deploy`, `db:migrate:status`, `db:baseline`, `db:reset:sqlite`, `db:seed:force`, `db:verify` (footgun scripts `db:migrate`/`db:reset` removed — they targeted the SQLite schema with a Postgres migrations folder).
+- New env vars documented: `SKIP_SEED`, `SEED_VERIFY_ALLOW_EMPTY`; `SEED_FORCE` semantics redefined as *repair* (v0.3.0: fill-missing).
+
+### Docs
+- `docs/PRODUCTION_READINESS_AUDIT.md`: Task 26 addendum with the Phase 1 database-state classification (scenarios A–D) and the new evidence log.
+- `docs/DEPLOYMENT-VERCEL.md`, `docs/DATABASE.md`, `docs/INSTALLATION.md`, `docs/ENVIRONMENT_VARIABLES.md`, `docs/TROUBLESHOOTING.md`: migration workflow, auto-baseline behavior, and a rewritten troubleshooting entry for the empty-seed incident.
+
+
 ## [0.3.0] — Production readiness audit: security fixes + invariant test suite
 
 ### Security / correctness fixes (full evidence in `docs/PRODUCTION_READINESS_AUDIT.md`)
@@ -18,7 +62,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/); this project do
 - `SECURITY.md` corrected: the documented `/api/upload` route **does not exist** in this build; secrets storage description updated to DB-first reality.
 
 ### Added
-- **Automated invariant test suite** (`tests/invariants.test.ts`, `bun run test`): 26 tests / 77 assertions covering the 10 release-critical business invariants (server-side pricing, oversell protection, checkout idempotency, order ownership, webmaster authorization matrix, state-machine rejection, Telegram failure isolation, controlled error funnel, notification config isolation, data-exposure controls). Runs against a throwaway temp SQLite DB with mocked `next/headers` and a stubbed network — zero production risk.
+- **Automated invariant test suite** (`tests/invariants.test.ts`, `bun run test`): 28 tests / 90 assertions covering the 10 release-critical business invariants (server-side pricing, oversell protection, checkout idempotency, order ownership, webmaster authorization matrix, state-machine rejection, Telegram failure isolation, controlled error funnel, notification config isolation, data-exposure controls). Runs against a throwaway temp SQLite DB with mocked `next/headers` and a stubbed network — zero production risk.
+- **`GET /api/health` deployment probe** — one public request distinguishes db-unreachable / schema-missing / not-seeded (booleans only, no internals). Smoke-test step #0 in the RUNBOOK.
+- **Actionable database error messages**: the API error funnel now maps unreachable DB, missing/outdated schema and PgBouncer prepared-statement conflicts to concrete remediation messages (still zero internal leakage) instead of a generic 500.
+- **Neon pooled URL guidance corrected**: `?sslmode=require&pgbouncer=true` is now documented as REQUIRED on the pooled `DATABASE_URL` (`.env.example`, `ENVIRONMENT_VARIABLES.md`, `DEPLOYMENT-VERCEL.md`) — Prisma's prepared statements collide with Neon's PgBouncer under concurrent requests without it (webmaster dashboard symptom).
+- TROUBLESHOOTING: new entries "Seed didn't insert anything on a deployed database" (guard skip is by design + reset paths) and "Webmaster dashboard shows Something went wrong" (diagnosis table + `/api/health` triage).
 - `docs/PRODUCTION_READINESS_AUDIT.md` — full audit with per-item PASS/FAIL/BLOCKED evidence, defect register, accepted risks, verdict: **READY WITH ACCEPTED RISKS**.
 - `docs/DEPLOYMENT_RUNBOOK.md` — deploy/smoke/backup/rollback/monitoring procedures.
 - `docs/ENVIRONMENT_VARIABLES.md` — every env var: purpose, required environments, secret flag, fallbacks (no values).

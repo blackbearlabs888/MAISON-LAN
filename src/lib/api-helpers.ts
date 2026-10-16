@@ -29,7 +29,38 @@ export function handleError(err: unknown) {
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === "P2002") return fail("A record with this unique value already exists.", 409);
     if (err.code === "P2025") return fail("Record not found.", 404);
+    if (err.code === "P2021")
+      return fail("Database tables are missing. Redeploy so the build can sync the schema.", 500);
+    if (err.code === "P2022")
+      return fail("Database schema is out of date. Redeploy to sync the schema.", 500);
   }
+
+  // Connection-level failures surface as PrismaClientInitializationError or raw
+  // driver errors — the codes appear in the message text. Mapping them to
+  // actionable messages (still no secrets) makes deployment issues diagnosable
+  // from the UI instead of only from server logs.
+  const rawMessage = err instanceof Error ? err.message : String(err ?? "");
+  if (/^P1012$|Environment variable `?[A-Z_]+`? was not found|Error validating datasource/i.test(rawMessage))
+    return fail(
+      "Database configuration error (P1012). The database environment variable is missing or invalid — check DATABASE_URL (and DIRECT_DATABASE_URL for CLI) in your deployment settings.",
+      500
+    );
+
+  if (/P1001|Can't reach database server|ECONNREFUSED|ETIMEDOUT/i.test(rawMessage))
+    return fail(
+      "Database is unreachable. Check DATABASE_URL and that the Neon compute is active.",
+      500
+    );
+  if (/Timed out fetching a new connection from the connection pool|P2024/i.test(rawMessage))
+    return fail(
+      "Database connection pool is exhausted. Check the pooled DATABASE_URL (?pgbouncer=true, ?connection_limit).",
+      500
+    );
+  if (/prepared statement .* already exists/i.test(rawMessage))
+    return fail(
+      "Database pooler conflict. Add ?pgbouncer=true to the pooled DATABASE_URL and redeploy.",
+      500
+    );
 
   console.error("[api] unhandled error:", err);
   // never leak internals to the client

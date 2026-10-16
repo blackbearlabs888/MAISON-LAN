@@ -44,7 +44,7 @@ Please avoid automated scanning against production deployments of licensees; tes
 
 - Serve over HTTPS only (see `docs/DEPLOYMENT.md`) — the session cookie needs it.
 - Set `APP_URL` to the public URL.
-- Do **not** run `bun run db:seed` in production (it creates documented demo credentials).
+- Seed and demo credentials: on an **empty** users table `bun run db:seed` creates the documented demo accounts (dev-only). Once **any** user exists, the seed never re-creates demo users — a redeploy cannot resurrect `owner@maisonelan.dev` with its public password. For a real store deploy with `SKIP_SEED=1` and bootstrap the owner via `/webmaster/setup`. Never run `SEED_FORCE=1` (`bun run db:seed:force`) on a production database: it explicitly resets the passwords of any existing demo accounts back to the documented dev values.
 - Rotate `TELEGRAM_BOT_TOKEN` via @BotFather if a leak is suspected; it is only in `.env`.
 - Back up `db/custom.db` and `public/uploads/` (see `docs/BACKUP-RESTORE.md`).
 - Restrict database-file access at the OS level (the SQLite file is the password DB).

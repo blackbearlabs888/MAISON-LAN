@@ -83,7 +83,52 @@ optional WIPE block at the top (see `docs/DEPLOYMENT-VERCEL.md` §3.1).
 
 ## Seed duplicates
 
-`prisma/seed.ts` is **idempotent**: settings/accounts/categories/CMS pages use `upsert`; products/couriers are skipped when their slug/code already exists; banners/FAQ are only inserted when the table is empty. Re-running `bun run db:seed` never duplicates rows. If you *want* fresh demo data: delete `db/custom.db`, `bun run db:push`, `bun run db:seed`.
+`prisma/seed.ts` (v2) is **ensure-exists**: every seed row is keyed by a natural key (email / slug / SKU / courier code / row id) and only created when missing. Re-running `bun run db:seed` never duplicates rows, never deletes, and never overwrites rows you edited in the webmaster. If you *want* fresh demo data on SQLite: `bun run db:reset:sqlite`, then `bun run db:seed`.
+
+## Seed "didn't insert anything" on a deployed database
+
+This was the **v0.3.0 defect** (fixed in v0.4.0): the old seed skipped
+*everything* when the users table was non-empty — a database with stray rows
+(e.g. from a manual SQL import) went live with an empty catalog. The v2 seed
+has **no global skip**: every deploy fills whatever rows are missing, keyed by
+natural key, and repairs invalid bcrypt hashes on the documented demo accounts.
+
+If the store is still empty after a v0.4.0 deploy:
+1. **Read the build log first.** The deploy now ends with a verification table
+   (`[seed:verify]` row counts + `users / products / …`). A deploy with an
+   empty catalog **fails the build** — it can no longer succeed silently.
+2. `https://<your-domain>/api/health` — `"seeded":false` means the catalog is
+   empty; `"schema":false` means migrations never ran (check `[prisma-deploy-db]`
+   Step 1 in the build log).
+3. **Repair seed rows** (reset demo passwords, restore canonical demo fields):
+   redeploy once with env `SEED_FORCE=1`, then remove the variable. It fills and
+   repairs — it still deletes nothing.
+4. **Wipe and rebuild with the official SQL (last resort):** Neon Console → SQL
+   Editor → paste `prisma/seed.sql`. Uncomment the `WIPE` block at the top when
+   the DB contains old/broken rows — it truncates all tables, then the INSERTs
+   rebuild the exact demo dataset. Afterwards run `bun run db:baseline` against
+   the database so the migration history matches, and redeploy.
+
+## Webmaster dashboard shows "Something went wrong. Please try again."
+
+That exact string is the API error funnel (`src/lib/api-helpers.ts`) — a
+webmaster endpoint returned 500. The real cause is always in the **Vercel
+function logs** (Project → Deployments → *latest* → Runtime Logs, filter
+`[api]`). From v0.3.0 the funnel also maps the common database failures to
+actionable messages shown in the UI:
+
+| UI message | Cause | Fix |
+|---|---|---|
+| `Database configuration error (P1012)…` | a database env var is missing/invalid in the deployment settings | Add/fix `DATABASE_URL` (and `DIRECT_DATABASE_URL` for CLI) on Vercel → redeploy (mapped in v0.4.0 — B-06) |
+| `Database is unreachable…` | `DATABASE_URL` wrong, Neon compute suspended, network | Check the Neon dashboard (compute active?), re-check the pooled URL, redeploy |
+| `Database tables are missing…` | migrations never ran on this DB | Redeploy — the build applies migrations; watch for `[prisma-deploy-db] Step 1/3` in the build log |
+| `Database schema is out of date…` | DB older than the code (missing column) | Redeploy; if a migration reports destructive changes it fails on purpose — see RUNBOOK §6 |
+| `…prepared statement…` / `Add ?pgbouncer=true` | pooled Neon URL without the `pgbouncer=true` flag — Prisma's prepared statements collide with PgBouncer under the dashboard's parallel queries | Edit `DATABASE_URL` on Vercel → append `&pgbouncer=true` → redeploy |
+| `Something went wrong. Please try again.` (generic) | anything else | copy the `[api] unhandled error:` line from the runtime logs |
+
+Quick triage: `GET /api/health` → `"db":"unreachable"` = connection problem;
+`"schema":false` = migrations missing; `"schema":true` + failing dashboard = read the
+runtime logs for the exact Prisma error.
 
 ## Checkout rejects the shipping method
 
@@ -93,9 +138,15 @@ optional WIPE block at the top (see `docs/DEPLOYMENT-VERCEL.md` §3.1).
 
 `Cannot change order status from X to Y` — the transition map (`src/lib/validators.ts`) only allows legal forward moves (e.g. `PENDING_PAYMENT → PAID`, never `COMPLETED → SHIPPED`). Cancel/refund paths are documented in `docs/DATABASE.md` § 5.
 
-## `bun run db:reset` fails or prompts
+## `prisma migrate` errors on a database created by `db push`
 
-`db:reset` = `prisma migrate reset` — it relies on a migration history. On a pure `db:push` workflow there are no migrations; to start over simply delete `db/custom.db` and run `db:push` (+ `db:seed`).
+A database whose tables were created by `db push` or an external tool has no
+`_prisma_migrations` table, so `migrate deploy` refuses with P3005 / “already
+exists”. The v0.4.0 deploy script **baselines automatically** (marks
+`0_init` as applied without running SQL, then re-deploys — no data changes).
+Manual fallback: `bun run db:baseline`, then `bun run db:migrate:status` to
+confirm. Local SQLite dev does **not** use migrations: reset with
+`bun run db:reset:sqlite` (drops + recreates `db/custom.db`).
 
 ## Webmaster returns 403 after login
 

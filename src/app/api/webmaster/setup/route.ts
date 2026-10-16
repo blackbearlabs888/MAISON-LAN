@@ -22,9 +22,17 @@ export async function POST(req: NextRequest) {
     const email = input.email.toLowerCase().trim();
 
     // Bootstrap is only possible while zero OWNER accounts exist. The check and
-    // the create share one transaction (audit A-08): two concurrent first-run
-    // submissions can no longer both pass the count on SQLite (single writer).
+    // the create share one transaction (audit A-08). On SQLite the single-writer
+    // lock fully serializes concurrent bootstraps. On PostgreSQL (READ COMMITTED)
+    // a transaction alone is NOT enough — two concurrent first-run submissions
+    // could both observe ownerCount=0 and both create an OWNER. A transaction-
+    // scoped advisory lock (S-02) serializes the critical section on Postgres;
+    // the loser re-reads the count after acquiring the lock and gets a 409.
     const result = await db.$transaction(async (tx) => {
+      if ((process.env.DATABASE_URL ?? "").startsWith("postgres")) {
+        // 742191117 = arbitrary, stable lock id reserved for owner bootstrap.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(742191117)`;
+      }
       const ownerCount = await tx.user.count({ where: { role: "OWNER" } });
       if (ownerCount > 0) return null;
 

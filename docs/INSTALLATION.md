@@ -44,7 +44,7 @@ The DB file resolves relative to the `prisma/` schema directory, so `file:./db/c
 bun run db:push
 ```
 
-This syncs `prisma/schema.prisma` to SQLite and creates `db/custom.db`. If you later edit the schema, re-run `db:push` (dev) or `bun run db:migrate` (production migration history).
+This syncs `prisma/schema.prisma` to SQLite and creates `db/custom.db`. If you later edit the schema, re-run `db:push` (local SQLite dev) — PostgreSQL deployments use version-controlled migrations instead (`prisma/migrations/` + `bun run db:migrate:deploy`, applied automatically on every deploy — see `docs/DATABASE.md` §10).
 
 ## 5. Choose your account path
 
@@ -100,7 +100,7 @@ Run through every item:
 
 ## 8. Production notes
 
-- **PostgreSQL** — change `datasource db.provider` to `"postgresql"` in `prisma/schema.prisma`, point `DATABASE_URL` at Postgres, run `db:push`/`db:migrate`. Money is integer cents, so the switch is numerically safe. Details: `README.md` § Switching SQLite → PostgreSQL.
+- **PostgreSQL** — a ready-made `prisma/schema.postgres.prisma` + `prisma/migrations/` ship with the repo; money is integer cents, so the switch is numerically safe. Point `DATABASE_URL`/`DIRECT_DATABASE_URL` at Postgres, run `bun run db:migrate:deploy` (or just deploy to Vercel — the build provisions the database, migrates, seeds and verifies automatically). Details: `README.md` § Switching SQLite → PostgreSQL and `docs/DEPLOYMENT-VERCEL.md`.
 - **`NODE_ENV=production`** — set by `bun run start`; it flips the session cookie to `Secure` (HTTPS required) and hides the dev-only password-reset token.
 - **HTTPS** — terminate TLS at a reverse proxy (Caddy/Nginx); the session cookie is `Secure` in production and plain-HTTP deployments will loop on login.
 - **`APP_URL`** — set to the public URL so Telegram messages carry correct dashboard deep-links.
