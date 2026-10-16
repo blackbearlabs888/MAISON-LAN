@@ -38,7 +38,7 @@ export const apiPut = <T>(url: string, body?: unknown): Promise<T> => request<T>
 export const apiPatch = <T>(url: string, body?: unknown): Promise<T> => request<T>("PATCH", url, body ?? {});
 export const apiDelete = <T>(url: string): Promise<T> => request<T>("DELETE", url);
 
-/** Upload an image (≤5MB, jpeg/png/webp) → returns its public URL. */
+/** Upload an image (≤4MB, jpeg/png/webp) → returns its public URL (/api/uploads/<id>). */
 export async function uploadImage(file: File): Promise<string> {
   const fd = new FormData();
   fd.append("file", file);

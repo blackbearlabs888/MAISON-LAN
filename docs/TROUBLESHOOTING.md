@@ -57,8 +57,9 @@ If `npm run db:seed` fails with `bun: command not found` (older releases hard-co
 
 ## Images not loading
 
-- Seeded imagery lives under `/images/...` (`public/images/`); uploads under `/uploads/...` (`public/uploads/`). Paths in DB rows are URL paths — the files must exist under `public/`.
-- With the **standalone** build, `public/` is copied into `.next/standalone/` at build time. Files uploaded **after** the build may be missing if you serve from the standalone directory — run the build before go-live or volume-mount `public/uploads` (see `docs/DEPLOYMENT.md` § 7).
+- Seeded imagery lives under `/images/...` (`public/images/`) and ships with the build. **Webmaster uploads** (since v0.4.4) are stored in the database and served from `/api/uploads/<id>` — they need no files on disk.
+- 404 on `/api/uploads/<id>` for a **recent** upload: the row was written to a different database than the app reads (check `DATABASE_URL`/branch), or you are on an old deployment missing the `MediaAsset` table — redeploy (the `1_add_media_asset` migration applies automatically).
+- Older installs may still reference `/uploads/<name>` files under `public/uploads/` — those paths must exist under `public/` (volume-mount or copy them into the standalone bundle if you serve from it; see `docs/DEPLOYMENT.md` § 7).
 - 404s on product images after deleting files: the DB still references the path — re-upload via the product editor or clear the image row.
 
 ## Telegram test fails

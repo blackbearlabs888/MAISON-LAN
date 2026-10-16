@@ -1,6 +1,6 @@
 # BACKUP & RESTORE
 
-What matters: **the database** (orders, customers, settings) and **`public/uploads/`** (media referenced by DB rows). Back up both, together, on a schedule, and rehearse the restore.
+What matters: **the database** (orders, customers, settings, **and media** — since v0.4.4 uploaded images live in the `MediaAsset` table). One backup covers everything; rehearse the restore.
 
 ## 1. SQLite (default install)
 
@@ -26,15 +26,13 @@ Nightly backup + weekly copy off the machine:
 30 2 * * 0  rsync -a /backups/db/ backup-host:/srv/backups/maison-elan/db/
 ```
 
-(escape `%` as `\%` in cron). Add `public/uploads` to the off-site job too.
+(escape `%` as `\%` in cron).
 
-## 2. Media (`public/uploads/`)
+## 2. Media (in the database since v0.4.4)
 
-```bash
-tar czf /backups/uploads-$(date +%F).tgz -C /opt/maison-elan/public uploads
-```
+Uploaded webmaster images are rows in the `MediaAsset` table (`/api/uploads/<id>` URLs), so they are captured by the database backups above automatically — **no separate media job exists anymore**. Only `public/images/…` files that ship with the build (seed imagery, logos you replaced in the repo) live on disk; they are part of your git/deploy artifact, not of runtime state.
 
-Schedule it right after the DB job. DB rows reference media by URL (`/uploads/<name>`), so a DB restore without media yields broken images — always restore both.
+If you swapped the storage sink for object storage (S3/Blob — see `docs/CUSTOMIZATION.md` §6), back up that bucket instead.
 
 ## 3. PostgreSQL (production installs after the datasource switch)
 
@@ -58,7 +56,7 @@ Schedule with the same cron pattern; keep at least 14 days of history and one co
    cp /backups/db/custom-2026-01-31.db /opt/maison-elan/db/custom.db
    ```
 
-3. Restore media into `public/uploads/` (and into the standalone bundle path if you volume-mounted it — see `docs/DEPLOYMENT.md` § 7).
+3. Media is inside the restored database (v0.4.4+) — nothing extra to copy. (Older installs that still reference `public/uploads/` files: restore that folder too.)
 4. If the backup predates a schema change, re-align the schema:
 
    ```bash

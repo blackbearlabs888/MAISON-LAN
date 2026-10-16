@@ -56,14 +56,14 @@ To add e.g. weight tiers:
 
 ## 6. Swapping the storage adapter (S3, R2, Cloudinary…)
 
-Uploads are handled in a single file: `src/app/api/upload/route.ts` (staff-only; 5 MB cap; magic-byte sniffing for JPEG/PNG/WebP; writes to `public/uploads/` with a randomized name; returns `{ url: "/uploads/<name>" }`).
+Uploads are validated in `src/app/api/upload/route.ts` (staff with the `media` capability; 4 MB cap — Vercel's serverless body limit is 4.5 MB; magic-byte sniffing for JPEG/PNG/WebP) and persisted by the sink in `src/lib/storage.ts`, which stores bytes **in the database** (`MediaAsset` table) and returns `{ url: "/api/uploads/<id>" }`. Database-backed storage was chosen so the same code works on Vercel (read-only filesystem), local SQLite and VPS with zero configuration, and media ride along in ordinary DB backups.
 
 To move to object storage:
 
-1. Replace the `mkdir`/`writeFile` block with your SDK call (`putObject`) using the same sniffed extension.
-2. Return the public/CDN URL instead of the local path.
-3. Nothing else changes — products/banners/pages store plain URL strings.
-4. Keep the auth guard (`requireRole`) and the sniffing; only the sink changes.
+1. Implement `saveImage()` in `src/lib/storage.ts` with your SDK call (`putObject`) — the sniffed MIME type is passed in.
+2. Return the public/CDN URL instead of the `/api/uploads/<id>` path.
+3. Nothing else changes — products/banners/pages store plain URL strings, and every image field accepts absolute URLs.
+4. Keep the auth guard (`requireStaff("media")`) and the sniffing; only the sink changes.
 
 ## 7. Currency / locale change
 

@@ -18,7 +18,7 @@ environment variables), never in core logic.
 | Validation | Zod v4 on every API route                     | never trust client prices/quantities/roles |
 | State      | Zustand (cart, client) + server components (catalog/orders) | cart persisted to localStorage |
 | Icons      | lucide-react                                  | |
-| Images     | `POST /api/upload` → `public/uploads/` (magic-byte sniffed, 5 MB cap) | single-file adapter in `src/app/api/upload/route.ts`; swap the fs sink for S3 |
+| Images     | `POST /api/upload` → **database** (`MediaAsset` table, magic-byte sniffed, 4 MB cap) → served by `/api/uploads/[id]` | sink adapter in `src/lib/storage.ts` — works on Vercel's read-only FS; swap for S3/Blob without touching routes |
 | Notify     | Telegram Bot API via server-side adapter (`src/lib/telegram.ts`) | creds from env only |
 
 ## 3. High-level structure

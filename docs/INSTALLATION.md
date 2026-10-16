@@ -116,5 +116,5 @@ Run through every item:
 - **`NODE_ENV=production`** — set by `bun run start`; it flips the session cookie to `Secure` (HTTPS required) and hides the dev-only password-reset token.
 - **HTTPS** — terminate TLS at a reverse proxy (Caddy/Nginx); the session cookie is `Secure` in production and plain-HTTP deployments will loop on login.
 - **`APP_URL`** — set to the public URL so Telegram messages carry correct dashboard deep-links.
-- **Backups** — schedule `db/custom.db` + `public/uploads/` backups before go-live: `docs/BACKUP-RESTORE.md`.
+- **Backups** — schedule `db/custom.db` backups before go-live (media is stored in the database since v0.4.4, so one backup covers everything): `docs/BACKUP-RESTORE.md`.
 - **Telegram** — optional; configure env vars and verify with the test button: `docs/TELEGRAM-SETUP.md`.

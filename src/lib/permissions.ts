@@ -14,7 +14,8 @@ export type Capability =
   | "shipping"
   | "settings"
   | "notifications"
-  | "audit";
+  | "audit"
+  | "media";
 
 export const CAPABILITIES: Record<Role, Capability[] | "*"> = {
   OWNER: "*",
@@ -30,9 +31,10 @@ export const CAPABILITIES: Record<Role, Capability[] | "*"> = {
     "settings",
     "notifications",
     "audit",
+    "media",
   ],
   ORDER_MANAGER: ["orders", "customers", "shipping", "notifications", "audit"],
-  CONTENT_MANAGER: ["products", "categories", "banners", "pages", "faq"],
+  CONTENT_MANAGER: ["products", "categories", "banners", "pages", "faq", "media"],
   CUSTOMER: [],
 };
 

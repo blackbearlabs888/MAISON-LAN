@@ -25,7 +25,7 @@ The dashboard lives at **`/webmaster`**. Every capability is enforced **server-s
 | FAQ | ✅ | ✅ | — | ✅ |
 | Settings | ✅ | ✅ | — | — |
 
-(`CUSTOMER` has no webmaster access. File uploads via `/api/upload` are permitted to all staff roles.)
+(`CUSTOMER` has no webmaster access. File uploads via `/api/upload` need the `media` capability: OWNER, ADMIN, CONTENT_MANAGER — not ORDER_MANAGER.)
 
 ## 3. Daily order workflow (manual bank transfer)
 
@@ -45,7 +45,7 @@ Cancellations: allowed while `PENDING_PAYMENT` (and later stages per the transit
 
 - Create/edit at `/webmaster/products` → editor: name, kebab-case slug, description, details (markdown), **priceCents in currency units** (converted once on save), optional sale price (only used when lower than base), SKU base, material, flags (featured / new arrival / best seller / active), up to 8 images (drag-order by position), ≥1 variant.
 - **Variants**: size and/or color, unique **SKU**, integer **stock**, optional `priceDeltaCents` added to the unit price (e.g. the 100 ml fragrance +Rp 900.000 in the seed).
-- Images: upload via the editor (`POST /api/upload`, JPEG/PNG/WebP, ≤5 MB, magic-byte sniffed) → stored in `public/uploads/`, first image is the card/cart thumbnail.
+- Images: upload via the editor (`POST /api/upload`, JPEG/PNG/WebP, ≤4 MB, magic-byte sniffed) → stored in the database (`MediaAsset`) and served from `/api/uploads/<id>`, first image is the card/cart thumbnail.
 - Stock edits trigger the low-stock check (`stock ≤ lowStockThreshold` → `LOW_STOCK` Telegram alert).
 - Archiving (rather than deleting) preserves order history references.
 

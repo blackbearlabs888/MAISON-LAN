@@ -56,7 +56,7 @@ bun run start           # NODE_ENV=production bun .next/standalone/server.js (lo
 
 First run: open `https://your-domain/webmaster/setup` to create the single OWNER account (works only while no owner exists). Verify with the checklist in `docs/INSTALLATION.md` § 7.
 
-> The `build` script copies `.next/static` and `public/` into `.next/standalone/` (per `package.json`), so the standalone folder is self-contained. Note that `public/uploads/` is copied at **build time** — run the build before staff upload files, or keep `public/` on a persistent volume shared into the standalone directory (see § 7 Media).
+> The `build` script copies `.next/static` and `public/` into `.next/standalone/` (per `package.json`), so the standalone folder is self-contained. Webmaster uploads (v0.4.4+) are stored **in the database** (`MediaAsset` table), so `public/` stays a build-time artifact and no persistent volume is needed for media.
 
 Run it under a process manager:
 
@@ -101,7 +101,7 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        client_max_body_size 10m;   # uploads are capped at 5 MB by the app
+        client_max_body_size 10m;   # uploads are capped at 4 MB by the app (Vercel-parity limit)
     }
 }
 ```
@@ -120,8 +120,8 @@ The rate limiter keys on `clientIp()` from proxy headers (`src/lib/api-helpers.t
 
 ## 5. Managed platforms
 
-- **Any Node host (Railway, Fly.io, Render, VPS)**: set env vars, `bun install && bun run build`, start command `bun .next/standalone/server.js` (or `bun run start`). Attach a persistent volume for SQLite + uploads, or use PostgreSQL.
-- **Serverless (Vercel etc.)**: not suitable with SQLite (no persistent FS, no long-lived in-memory rate limiter). Switch to PostgreSQL and swap the rate-limit Map for Redis behind the same interface (`src/lib/rate-limit.ts`) before considering it.
+- **Any Node host (Railway, Fly.io, Render, VPS)**: set env vars, `bun install && bun run build`, start command `bun .next/standalone/server.js` (or `bun run start`). Attach a persistent volume for the SQLite file, or use PostgreSQL (uploads live in the database either way).
+- **Serverless (Vercel etc.)**: not suitable with SQLite (ephemeral FS) — use PostgreSQL (Neon) and follow `docs/DEPLOYMENT-VERCEL.md`, which provisions, migrates, seeds and verifies automatically during the build. Uploaded media is database-backed (v0.4.4), so serverless works out of the box.
 
 ## 6. Backups before deploy
 
@@ -129,15 +129,16 @@ Take a backup before every deploy that touches the schema:
 
 ```bash
 sqlite3 db/custom.db ".backup '/backups/custom-$(date +%F-%H%M).db'"
-tar czf /backups/uploads-$(date +%F-%H%M).tgz public/uploads
 ```
+
+(Media is inside the database since v0.4.4 — one file covers everything.)
 
 Full procedures, cron examples and restore drills: `docs/BACKUP-RESTORE.md`.
 
 ## 7. Health checks & media persistence
 
 - **Health check**: `GET /` should render HTTP 200 (staff-gated `/webmaster` returns a redirect when anonymous — a fine secondary check). For TCP-level checks, probe port 3000.
-- **Media**: uploads live in `public/uploads/`. Either rebuild before go-live so `public/` is baked into the standalone bundle and then treat `public/uploads` as persistent state, or symlink/volume-mount a persistent directory at `.next/standalone/public/uploads`. Back it up with the DB (they reference each other).
+- **Media**: uploaded images live in the database (`MediaAsset` table, served by `/api/uploads/[id]` with immutable caching) since v0.4.4 — they need no disk, no volume, and no rebuild ordering. Only repo-shipped files (`public/images/…`) are build-time artifacts.
 - **Log rotation**: dev/start scripts tee to `dev.log`/`server.log`. Rotate with logrotate:
 
   ```

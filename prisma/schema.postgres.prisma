@@ -387,3 +387,17 @@ model AdminAuditLog {
   @@index([createdAt])
   @@index([actorId])
 }
+
+/// Binary media uploaded from the webmaster (product/banner/page images).
+/// Bytes live in the DATABASE, not on disk, so hosts without a writable
+/// filesystem (Vercel/Lambda) behave exactly like local SQLite — uploads are
+/// served publicly by /api/uploads/[id] with immutable caching. The sink is
+/// wrapped by src/lib/storage.ts so S3/Cloudinary adapters stay drop-in
+/// (decision D-10). Cap: 4 MiB (Vercel's serverless body limit is 4.5 MB).
+model MediaAsset {
+  id        String   @id @default(cuid())
+  mime      String // image/jpeg | image/png | image/webp (validated by magic bytes)
+  size      Int // bytes
+  data      Bytes
+  createdAt DateTime @default(now())
+}
